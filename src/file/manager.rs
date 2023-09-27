@@ -68,10 +68,8 @@ impl FileMgr {
 
 	pub fn read(&mut self, blk: &BlockId, p: &mut Page) -> Result<()> {
 		if self.l.lock().is_ok() {
-			self.get_file(blk.file_name())?;
-			
-			if let Some(f) = self.open_files.get_mut(&blk.file_name()) {
-				let offset = blk.number() * self.blocksize;
+			let offset = blk.number() * self.blocksize;
+			if let Some(f) = self.get_file(blk.file_name()) {
 				f.seek(SeekFrom::Start(offset))?;
 
 				let read_len = f.read(p.contents())?;
@@ -99,10 +97,9 @@ impl FileMgr {
 
 			let b: Vec<u8> = vec![0u8; self.blocksize as usize];
 
-			self.get_file(blk.file_name())?;
-
-			if let Some(f) = self.open_files.get_mut(&blk.file_name()) {
-				f.seek(SeekFrom::Start(blk.number() * self.blocksize))?;
+			let offset = blk.number() * self.blocksize;
+			if let Some(f) = self.get_file(blk.file_name()) {
+				f.seek(SeekFrom::Start(offset))?;
 				f.write_all(&b)?;
 
 				return Ok(blk);
@@ -114,10 +111,8 @@ impl FileMgr {
 
 	pub fn write(&mut self, blk: &BlockId, p: &mut Page) -> Result<()> {
 		if self.l.lock().is_ok() {
-			self.get_file(blk.file_name())?;
-
-			if let Some(f) = self.open_files.get_mut(&blk.file_name()) {
-				let offset = blk.number() * self.blocksize;
+			let offset = blk.number() * self.blocksize;
+			if let Some(f) = self.get_file(blk.file_name()) {
 				f.seek(SeekFrom::Start(offset))?;
 				f.write_all(p.contents())?;
 
@@ -130,25 +125,26 @@ impl FileMgr {
 
 	pub fn length(&mut self, filename: String) -> Result<u64> {
 		let path = Path::new(&self.db_directory).join(&filename);
-		self.get_file(filename)?;
+		let _ = self.get_file(filename).unwrap();
 		let meta = fs::metadata(&path)?;
 
 		// ceiling
 		Ok((meta.len() + self.blocksize - 1) / self.blocksize)
 	}
 
-	pub fn get_file(&mut self, filename: String) -> Result<()> {
+	pub fn get_file(&mut self, filename: String) -> Option<&mut File> {
 		let path = Path::new(&self.db_directory).join(&filename);
 
-		self.open_files.entry(filename).or_insert(
+		let f = self.open_files.entry(filename).or_insert(
 			OpenOptions::new()
 				.read(true)
 				.write(true)
 				.create(true)
-				.open(&path)?,
+				.open(&path)
+				.unwrap(),
 		);
 
-		Ok(())
+		Some(f)
 	}
 
 	pub fn blocksize(&self) -> u64 {
