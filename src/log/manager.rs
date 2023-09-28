@@ -34,20 +34,20 @@ pub struct LogMgr {
 }
 
 impl LogMgr {
-	pub fn new(fm: Arc<RefCell<FileMgr>>, logfile: String) -> Result<Self> {
+	pub fn new(fm: Arc<RefCell<FileMgr>>, logfile: &str) -> Result<Self> {
 		let mut logpage = Page::new_from_size(fm.borrow().blocksize() as usize);
-		let logsize = fm.borrow_mut().length(logfile.clone())?;
+		let logsize = fm.borrow_mut().length(logfile)?;
 
 		let logmgr;
 
 		if logsize == 0 {
-			let blk = fm.borrow_mut().append(logfile.clone())?;
+			let blk = fm.borrow_mut().append(logfile)?;
 			logpage.set_i32(0, fm.borrow().blocksize() as i32)?;
 			fm.borrow_mut().write(&blk, &mut logpage)?;
 
 			logmgr = Self {
 				fm,
-				logfile,
+				logfile: logfile.to_string(),
 				logpage,
 				current_blk: blk,
 				latest_lsn: 0,
@@ -55,12 +55,12 @@ impl LogMgr {
 				l: Arc::new(Mutex::default()),
 			};
 		} else {
-			let newblk = BlockId::new(&logfile, logsize - 1);
+			let newblk = BlockId::new(logfile, logsize - 1);
 			fm.borrow_mut().read(&newblk, &mut logpage)?;
 
 			logmgr = Self {
 				fm,
-				logfile,
+				logfile: logfile.to_string(),
 				logpage,
 				current_blk: newblk,
 				latest_lsn: 0,
@@ -115,7 +115,7 @@ impl LogMgr {
 	}
 
 	fn append_newblk(&mut self) -> Result<BlockId> {
-		let blk = self.fm.borrow_mut().append(self.logfile.clone())?;
+		let blk = self.fm.borrow_mut().append(self.logfile.as_str())?;
 		self.logpage
 			.set_i32(0, self.fm.borrow().blocksize() as i32)?;
 		self.fm.borrow_mut().write(&blk, &mut self.logpage)?;
