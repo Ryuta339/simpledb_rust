@@ -136,12 +136,19 @@ impl LogMgr {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::path::Path;
+	use std::fs::remove_file;
 	use crate::file::manager::FileMgr;
 
-	static LOG_FILE: &str = "simbledb.log";
+	static LOG_FILE: &str = "simpledb.log";
 
 	#[test]
 	fn log_test() {
+		let filename = format!("logtest/{}", LOG_FILE);
+		let path = Path::new(filename.as_str());
+		if path.is_file() {
+			let _ = remove_file(path);
+		}
 		let fm = FileMgr::new("logtest", 400).unwrap();
 		let mut lm = LogMgr::new(
 			Arc::new(RefCell::new(fm)),
@@ -149,9 +156,11 @@ mod tests {
 			).unwrap();
 		let _ = create_records(&mut lm, 1, 35);
 		let _ = print_log_records(&mut lm, "The log file now has these: records:");
+		let _ = assert_log_records(&mut lm, 35, 1);
 		let _ = create_records(&mut lm, 36, 70);
 		let _ = lm.flush(65);
 		let _ = print_log_records(&mut lm, "The log file now has these records:");
+		let _ = assert_log_records(&mut lm, 70, 1);
 	}
 
 	fn print_log_records(lm: &mut LogMgr, msg: &str) -> Result<()> {
@@ -169,6 +178,22 @@ mod tests {
 		Ok(())
 	}
 
+	fn assert_log_records(lm: &mut LogMgr, start: i32, end: i32) -> Result<()> {
+		let iter = lm.iterator()?;
+		let mut i = start;
+		for rec in iter {
+			let p = Page::new_from_bytes(rec);
+			let s = p.get_string(0).unwrap();
+			let npos = Page::max_length(s.len());
+			let val = p.get_i32(npos).unwrap();
+			assert_eq!(format!("record{}", i).as_str(), s);
+			assert_eq!(i+100, val);
+			i -= 1;
+		}
+		assert_eq!(end, i+1);
+		Ok(())
+	}
+
 	fn create_records(lm: &mut LogMgr, start: i32, end: i32) -> Result<()> {
 		println!("Creating records:");
 		for i in start..(end+1) {
@@ -182,7 +207,8 @@ mod tests {
 
 	fn create_log_record(s: &str, n: i32) -> Result<Vec<u8>> {
 		let npos = Page::max_length(s.len());
-		let b = Vec::<u8>::with_capacity(npos + 32);
+		// let b = Vec::<u8>::with_capacity(npos + 32);
+		let b = vec![0u8; npos+32];
 		let mut p = Page::new_from_bytes(b);
 		let _ = p.set_string(0, s.to_string())?;
 		let _ = p.set_i32(npos, n)?;
