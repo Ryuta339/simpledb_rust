@@ -166,3 +166,78 @@ fn waiting_too_long(starttime: SystemTime) -> bool {
 
 	diff.as_millis() as i64 > MAX_TIME
 }
+
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::file::{block_id::BlockId, manager::FileMgr};
+	use crate::log::manager::LogMgr;
+	use crate::buffer::manager::BufferMgr;
+
+	use std::cell::Ref;
+
+	static LOG_FILE: &str = "simpledb.log";
+
+	#[test]
+	fn buffermgr_test() -> Result<()> {
+		let fm = FileMgr::new("buffermgrtest", 400).unwrap();
+		let fm_arc = Arc::new(RefCell::new(fm));
+		let lm = LogMgr::new(Arc::clone(&fm_arc), LOG_FILE).unwrap();
+		let lm_arc = Arc::new(RefCell::new(lm));
+		let mut bm = BufferMgr::new(fm_arc, lm_arc, 3);
+		
+		let mut buff: Vec<Option<Arc<RefCell<Buffer>>>> = vec![None; 6];
+		buff[0] = bm.pin(&BlockId::new("testfile", 0))?.into();
+		buff[1] = bm.pin(&BlockId::new("testfile", 1))?.into();
+		buff[2] = bm.pin(&BlockId::new("testfile", 2))?.into();
+		bm.unpin(Arc::clone(&buff[1].clone().unwrap()))?;
+		buff[1] = None;
+
+		buff[3] = bm.pin(&BlockId::new("testfile", 0))?.into();
+		buff[4] = bm.pin(&BlockId::new("testfile", 1))?.into();
+
+		assert_eq!(bm.available()?, 0);
+
+		println!("Abailable buffers: {}", bm.available()?);
+		println!("Attempting to pin block 3...");
+		let result = bm.pin(&BlockId::new("testfile", 3));
+		assert!(result.is_err());
+
+		bm.unpin(Arc::clone(&buff[2].clone().unwrap()))?;
+		buff[2] = None;
+		buff[5] = bm.pin(&BlockId::new("testfile", 3))?.into();
+
+		println!("Check buff");
+		// 0
+		assert!(buff[0].is_some());
+		{
+			let result: Ref<Buffer> = buff[0].as_ref().unwrap().as_ref().borrow();
+			assert_eq!(result.block(), Some(&BlockId::new("testfile", 0)));
+		}
+		// 1
+		assert!(buff[1].is_none());
+		// 2
+		assert!(buff[2].is_none());
+		// 3
+		assert!(buff[3].is_some());
+		{
+			let result: Ref<Buffer> = buff[3].as_ref().unwrap().as_ref().borrow();
+			assert_eq!(result.block(), Some(&BlockId::new("testfile", 0)));
+		}
+		// 4
+		assert!(buff[4].is_some());
+		{
+			let result: Ref<Buffer> = buff[4].as_ref().unwrap().as_ref().borrow();
+			assert_eq!(result.block(), Some(&BlockId::new("testfile", 1)));
+		}
+		// 5
+		assert!(buff[5].is_some());
+		{
+			let result: Ref<Buffer> = buff[5].as_ref().unwrap().as_ref().borrow();
+			assert_eq!(result.block(), Some(&BlockId::new("testfile", 3)));
+		}
+
+		Ok(())
+	}
+}
