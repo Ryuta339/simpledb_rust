@@ -187,15 +187,15 @@ mod tests {
 		let lm_arc = Arc::new(RefCell::new(lm));
 		let mut bm = BufferMgr::new(fm_arc, lm_arc, 3);
 		
-		let mut buff: Vec<Option<Arc<RefCell<Buffer>>>> = vec![None; 6];
-		buff[0] = bm.pin(&BlockId::new("testfile", 0))?.into();
-		buff[1] = bm.pin(&BlockId::new("testfile", 1))?.into();
-		buff[2] = bm.pin(&BlockId::new("testfile", 2))?.into();
-		bm.unpin(Arc::clone(&buff[1].clone().unwrap()))?;
-		buff[1] = None;
+		let mut buffs: Vec<Option<Arc<RefCell<Buffer>>>> = vec![None; 6];
+		buffs[0] = bm.pin(&BlockId::new("testfile", 0))?.into();
+		buffs[1] = bm.pin(&BlockId::new("testfile", 1))?.into();
+		buffs[2] = bm.pin(&BlockId::new("testfile", 2))?.into();
+		bm.unpin(Arc::clone(&buffs[1].clone().unwrap()))?;
+		buffs[1] = None;
 
-		buff[3] = bm.pin(&BlockId::new("testfile", 0))?.into();
-		buff[4] = bm.pin(&BlockId::new("testfile", 1))?.into();
+		buffs[3] = bm.pin(&BlockId::new("testfile", 0))?.into();
+		buffs[4] = bm.pin(&BlockId::new("testfile", 1))?.into();
 
 		assert_eq!(bm.available()?, 0);
 
@@ -204,40 +204,48 @@ mod tests {
 		let result = bm.pin(&BlockId::new("testfile", 3));
 		assert!(result.is_err());
 
-		bm.unpin(Arc::clone(&buff[2].clone().unwrap()))?;
-		buff[2] = None;
-		buff[5] = bm.pin(&BlockId::new("testfile", 3))?.into();
+		bm.unpin(Arc::clone(&buffs[2].clone().unwrap()))?;
+		buffs[2] = None;
+		buffs[5] = bm.pin(&BlockId::new("testfile", 3))?.into();
 
 		println!("Check buff");
-		// 0
-		assert!(buff[0].is_some());
-		{
-			let result: Ref<Buffer> = buff[0].as_ref().unwrap().as_ref().borrow();
-			assert_eq!(result.block(), Some(&BlockId::new("testfile", 0)));
-		}
-		// 1
-		assert!(buff[1].is_none());
-		// 2
-		assert!(buff[2].is_none());
-		// 3
-		assert!(buff[3].is_some());
-		{
-			let result: Ref<Buffer> = buff[3].as_ref().unwrap().as_ref().borrow();
-			assert_eq!(result.block(), Some(&BlockId::new("testfile", 0)));
-		}
-		// 4
-		assert!(buff[4].is_some());
-		{
-			let result: Ref<Buffer> = buff[4].as_ref().unwrap().as_ref().borrow();
-			assert_eq!(result.block(), Some(&BlockId::new("testfile", 1)));
-		}
-		// 5
-		assert!(buff[5].is_some());
-		{
-			let result: Ref<Buffer> = buff[5].as_ref().unwrap().as_ref().borrow();
-			assert_eq!(result.block(), Some(&BlockId::new("testfile", 3)));
+		let assertions: Vec<&'static dyn BufferAssertion> = vec![
+			&HasBlockIdBuffer{ blknum: 0 },
+			&NoneBuffer{},
+			&NoneBuffer{},
+			&HasBlockIdBuffer{ blknum: 0 },
+			&HasBlockIdBuffer{ blknum: 1 },
+			&HasBlockIdBuffer{ blknum: 3 },
+		];
+
+		for ( buff, assertion ) in buffs.iter_mut().zip(assertions.iter()) {
+				assertion.assert_buffer(buff);
 		}
 
 		Ok(())
+	}
+
+	trait BufferAssertion {
+		fn assert_buffer(&self, buff: &Option<Arc<RefCell<Buffer>>>);
+	}
+
+	struct NoneBuffer {}
+	impl BufferAssertion for NoneBuffer {
+		fn assert_buffer(&self, buff: &Option<Arc<RefCell<Buffer>>>) {
+			assert!(buff.is_none());
+		}
+	}
+
+	struct HasBlockIdBuffer {
+		blknum: u64,
+	}
+	impl BufferAssertion for HasBlockIdBuffer {
+		fn assert_buffer(&self, buff: &Option<Arc<RefCell<Buffer>>>) {
+			assert!(buff.is_some());
+			{
+				let result: Ref<Buffer> = buff.as_ref().unwrap().as_ref().borrow();
+				assert_eq!(result.block(), Some(&BlockId::new("testfile", self.blknum)));
+			}
+		}
 	}
 }
