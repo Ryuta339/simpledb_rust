@@ -68,12 +68,9 @@ impl BufferMgr {
 
 	pub fn flush_all(&mut self, txnum: i32) -> Result<()> {
 		if self.l.lock().is_ok() {
-			// TODO: seems good to use filter
-			for i in 0..self.bufferpool.len() {
-				if self.bufferpool[i].borrow().modifying_tx() == txnum {
-					self.bufferpool[i].borrow_mut().flush()?;
-				}
-			}
+			let _ = self.bufferpool.iter()
+				.filter(|buff| buff.borrow().modifying_tx() == txnum)
+				.map(|buff| buff.borrow_mut().flush().ok());
 		}
 
 		Err(From::from(BufferMgrError::LockFailed(
