@@ -1,10 +1,15 @@
+use core::fmt;
+use std::{cell::RefCell, mem, sync::Arc};
 use anyhow::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-use crate::file::page::Page;
+use crate::{
+	file::{block_id::BlockId, page::Page},
+	log::manager::LogMgr,
+};
 
-#[derive(FromPrimitive)]
+#[derive(FromPrimitive, Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TxType {
 	CHECKPOINT = 0,
 	START = 1,
@@ -31,7 +36,7 @@ impl dyn LogRecord {
 			Some(TxType::COMMIT) => Ok(Box::new(SetCommitRecord {})),
 			Some(TxType::ROLLBACK) => Ok(Box::new(SetRollbackRecord {})),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record{})),
-			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord {})),
+			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
 			None => panic!("TODO"),
 		}
 	}
@@ -107,17 +112,79 @@ impl LogRecord for SetI32Record {
 	}
 }
 
-pub struct SetStringRecord {}
+pub struct SetStringRecord {
+	txnum: i32,
+	offset: i32,
+	val: String,
+	blk: BlockId,
+}
+
+impl fmt::Display for SetStringRecord {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(
+			f,
+			"<SETSTRING {} {} {} {}>",
+			self.txnum, self.blk, self.offset, self.val
+		)
+	}
+}
 
 impl LogRecord for SetStringRecord {
 	fn op(&self) -> TxType {
-		panic!("TODO");
+		TxType::SETSTRING
 	}
 	fn tx_number(&self) -> i32 {
-		panic!("TODO");
+		self.txnum
 	}
 	fn undo(&self, txnum: i32) -> Option<()> {
 		panic!("TODO");
 	}
 }
 
+impl SetStringRecord {
+	pub fn new(p: Page) -> Result<Self> {
+		let tpos = mem::size_of::<i32>();
+		let txnum = p.get_i32(tpos)?;
+		let fpos = tpos + mem::size_of::<i32>();
+		let filename = p.get_string(fpos)?;
+		let bpos = fpos + Page::max_length(filename.len());
+		let blknum = p.get_i32(bpos)?;
+		let blk = BlockId::new(&filename, blknum as u64);
+		let opos = bpos + mem::size_of::<i32>();
+		let offset = p.get_i32(opos)?;
+		let vpos = opos + mem::size_of::<i32>();
+		let val = p.get_string(vpos)?;
+
+		Ok(Self {
+			txnum,
+			offset,
+			val,
+			blk,
+		})
+	}
+
+	pub fn write_to_log(
+		lm: Arc<RefCell<LogMgr>>,
+		txnum: i32,
+		blk: BlockId,
+		offset: i32,
+		val: String,
+	) -> Result<u64> {
+		let tpos = mem::size_of::<i32>();
+		let fpos = tpos + mem::size_of::<i32>();
+		let bpos = fpos + Page::max_length(blk.file_name().len());
+		let opos = bpos + mem::size_of::<i32>();
+		let vpos = opos + mem::size_of::<i32>();
+		let reclen = vpos + Page::max_length(val.len());
+		
+		let mut p = Page::new_from_size(reclen);
+		p.set_i32(0, TxType::SETSTRING as i32)?;
+		p.set_i32(tpos, txnum)?;
+		p.set_string(fpos, blk.file_name())?;
+		p.set_i32(bpos, blk.number() as i32)?;
+		p.set_i32(opos, offset)?;
+		p.set_string(vpos, val)?;
+
+		lm.borrow_mut().append(p.contents())
+	}
+}
