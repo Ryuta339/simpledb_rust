@@ -32,7 +32,7 @@ impl dyn LogRecord {
 
 		match FromPrimitive::from_i32(tx_type) {
 			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord {})),
-			Some(TxType::START) => Ok(Box::new(StartRecord {})),
+			Some(TxType::START) => Ok(Box::new(StartRecord::new(p)?)),
 			Some(TxType::COMMIT) => Ok(Box::new(CommitRecord {})),
 			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord {})),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
@@ -56,17 +56,45 @@ impl LogRecord for CheckpointRecord {
 	}
 }
 
-pub struct StartRecord {}
+pub struct StartRecord {
+	txnum: i32,
+}
+
+impl fmt::Display for StartRecord {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "<START {}>", self.txnum)
+	}
+}
 
 impl LogRecord for StartRecord {
 	fn op(&self) -> TxType {
-		panic!("TODO");
+		TxType::START
 	}
 	fn tx_number(&self) -> i32 {
-		panic!("TODO");
+		self.txnum
 	}
 	fn undo(&self, txnum: i32) -> Option<()> {
 		panic!("TODO");
+	}
+}
+
+impl StartRecord {
+	pub fn new(p: Page) -> Result<Self> {
+		let tpos = mem::size_of::<i32>();
+		let txnum = p.get_i32(tpos)?;
+
+		Ok(Self { txnum })
+	}
+
+	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
+		let tpos = mem::size_of::<i32>();
+		let reclen = tpos + mem::size_of::<i32>();
+
+		let mut p = Page::new_from_size(reclen as usize);
+		p.set_i32(0, TxType::START as i32)?;
+		p.set_i32(tpos, txnum)?;
+
+		lm.borrow_mut().append(p.contents())
 	}
 }
 
