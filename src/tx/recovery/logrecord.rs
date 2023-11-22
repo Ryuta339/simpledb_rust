@@ -31,10 +31,10 @@ impl dyn LogRecord {
 		let tx_type: i32 = p.get_i32(0)?;
 
 		match FromPrimitive::from_i32(tx_type) {
-			Some(TxType::CHECKPOINT) => Ok(Box::new(SetCheckpointRecord {})),
-			Some(TxType::START) => Ok(Box::new(SetStartRecord {})),
-			Some(TxType::COMMIT) => Ok(Box::new(SetCommitRecord {})),
-			Some(TxType::ROLLBACK) => Ok(Box::new(SetRollbackRecord {})),
+			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord {})),
+			Some(TxType::START) => Ok(Box::new(StartRecord {})),
+			Some(TxType::COMMIT) => Ok(Box::new(CommitRecord {})),
+			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord {})),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
 			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
 			None => panic!("TODO"),
@@ -42,9 +42,9 @@ impl dyn LogRecord {
 	}
 }
 
-pub struct SetCheckpointRecord {}
+pub struct CheckpointRecord {}
 
-impl LogRecord for SetCheckpointRecord {
+impl LogRecord for CheckpointRecord {
 	fn op(&self) -> TxType {
 		panic!("TODO");
 	}
@@ -56,9 +56,9 @@ impl LogRecord for SetCheckpointRecord {
 	}
 }
 
-pub struct SetStartRecord {}
+pub struct StartRecord {}
 
-impl LogRecord for SetStartRecord {
+impl LogRecord for StartRecord {
 	fn op(&self) -> TxType {
 		panic!("TODO");
 	}
@@ -70,9 +70,9 @@ impl LogRecord for SetStartRecord {
 	}
 }
 
-pub struct SetCommitRecord {}
+pub struct CommitRecord {}
 
-impl LogRecord for SetCommitRecord {
+impl LogRecord for CommitRecord {
 	fn op(&self) -> TxType {
 		panic!("TODO");
 	}
@@ -84,9 +84,9 @@ impl LogRecord for SetCommitRecord {
 	}
 }
 
-pub struct SetRollbackRecord {}
+pub struct RollbackRecord {}
 
-impl LogRecord for SetRollbackRecord {
+impl LogRecord for RollbackRecord {
 	fn op(&self) -> TxType {
 		panic!("TODO");
 	}
