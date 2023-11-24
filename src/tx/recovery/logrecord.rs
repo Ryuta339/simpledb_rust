@@ -37,7 +37,7 @@ impl dyn LogRecord {
 			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord::new(p)?)),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
 			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
-			None => panic!("TODO"),
+			None => panic!("Unsupported TxType found"),
 		}
 	}
 }
