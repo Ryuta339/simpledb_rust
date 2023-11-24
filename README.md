@@ -11,3 +11,58 @@
 ```rust
     p.set_i32(0, TxType::COMMIT as i32)?;
 ```
+
+
+## Record Bytes
+
+### SetStringRecord
+
+TxType: 32 bits
+TxNumber: 32 bits
+FileName: length of filename + 32 bits
+No. of Block: 32 bits
+Offset: 32 bits
+Value: length of the string value
+
+
+### SetI32Record
+
+TxType: 32 bits
+TxNumber: 32 bits
+FileName: length of filename + 32 bits
+No. of Block: 32 bits
+Offset: 32 bits
+value: 32 bits
+
+
+### StartRecord
+
+TxType: 32 bits
+TxNumber: 32 bits
+
+
+### CommitRecord
+
+TxType: 32 bits
+TxNumber: 32 bits
+
+
+### RollbackRecord
+
+TxType: 32 bits
+TxNumber: 32 bits
+
+
+### CheckpointRecord
+
+TxType: 32 bits
+
+
+
+## For the future Record Bytes
+
+### SetI15Record
+
+### SetBoolRecord
+
+### SetDateRecord
