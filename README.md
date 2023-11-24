@@ -61,7 +61,7 @@
 
 ## For the future Record Bytes
 
-### SetI15Record
+### SetI16Record
 
 ### SetBoolRecord
 
