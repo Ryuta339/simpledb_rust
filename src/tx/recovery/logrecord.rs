@@ -31,7 +31,7 @@ impl dyn LogRecord {
 		let tx_type: i32 = p.get_i32(0)?;
 
 		match FromPrimitive::from_i32(tx_type) {
-			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord {})),
+			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord::new(p)?)),
 			Some(TxType::START) => Ok(Box::new(StartRecord::new(p)?)),
 			Some(TxType::COMMIT) => Ok(Box::new(CommitRecord::new(p)?)),
 			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord::new(p)?)),
@@ -44,15 +44,36 @@ impl dyn LogRecord {
 
 pub struct CheckpointRecord {}
 
+impl fmt::Display for CheckpointRecord {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "<CHECKPOINT>")
+	}
+}
+
 impl LogRecord for CheckpointRecord {
 	fn op(&self) -> TxType {
-		panic!("TODO");
+		TxType::CHECKPOINT
 	}
 	fn tx_number(&self) -> i32 {
-		panic!("TODO");
+		-1 // dummy value
 	}
 	fn undo(&self, txnum: i32) -> Option<()> {
 		panic!("TODO");
+	}
+}
+
+impl CheckpointRecord {
+	pub fn new(p: Page) -> Result<Self> {
+		Ok(Self {})
+	}
+
+	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>) -> Result<u64> {
+		let reclen = mem::size_of::<i32>();
+
+		let mut p = Page::new_from_size(reclen);
+		p.set_i32(0, TxType::CHECKPOINT as i32)?;
+
+		lm.borrow_mut().append(p.contents())
 	}
 }
 
