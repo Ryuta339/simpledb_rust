@@ -34,7 +34,7 @@ impl dyn LogRecord {
 			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord {})),
 			Some(TxType::START) => Ok(Box::new(StartRecord::new(p)?)),
 			Some(TxType::COMMIT) => Ok(Box::new(CommitRecord::new(p)?)),
-			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord {})),
+			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord::new(p)?)),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
 			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
 			None => panic!("TODO"),
@@ -140,17 +140,45 @@ impl CommitRecord {
 	}
 }
 
-pub struct RollbackRecord {}
+pub struct RollbackRecord {
+	txnum: i32,
+}
+
+impl fmt::Display for RollbackRecord {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "<ROLLBACK {}>", self.txnum)
+	}
+}
 
 impl LogRecord for RollbackRecord {
 	fn op(&self) -> TxType {
-		panic!("TODO");
+		TxType::ROLLBACK
 	}
 	fn tx_number(&self) -> i32 {
-		panic!("TODO");
+		self.txnum
 	}
 	fn undo(&self, txnum: i32) -> Option<()> {
 		panic!("TODO");
+	}
+}
+
+impl RollbackRecord {
+	pub fn new(p: Page) -> Result<Self> {
+		let tpos = mem::size_of::<i32>();
+		let txnum = p.get_i32(tpos)?;
+
+		Ok(Self { txnum })
+	}
+
+	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
+		let tpos = mem::size_of::<i32>();
+		let reclen = tpos + mem::size_of::<i32>();
+
+		let mut p = Page::new_from_size(reclen as usize);
+		p.set_i32(0, TxType::ROLLBACK as i32)?;
+		p.set_i32(tpos, txnum)?;
+
+		lm.borrow_mut().append(p.contents())
 	}
 }
 
