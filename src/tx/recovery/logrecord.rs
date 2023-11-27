@@ -356,3 +356,28 @@ impl SetStringRecord {
 		lm.borrow_mut().append(p.contents())
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_create_log_record() -> Result<()> {
+		let tests_list: Vec<(Vec<u8>, TxType, i32)> = vec![
+			(vec![0x00, 0x00, 0x00, 0x00], TxType::CHECKPOINT, -1),
+			(vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF], TxType::START, 255),
+			(vec![0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xDD, 0xFF], TxType::COMMIT, 56831),
+			(vec![0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0A], TxType::ROLLBACK, 10),
+			// (vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x0B, 0x00, 0x07], TxType::SETI32, 720903),
+			// (vec![0x00, 0x00, 0x00, 0x05, 0x01, 0x00, 0x10, 0x00], TxType::SETSTRING, 16781312),
+		];
+
+		tests_list.iter().for_each(|(bytes, expected_txtype, expected_txnum)| {
+			let actual: Box<dyn LogRecord> = <dyn LogRecord>::create_log_record(bytes.to_vec()).unwrap();
+			assert_eq!(*expected_txtype, actual.op());
+			assert_eq!(*expected_txnum, actual.tx_number());
+		});
+
+		Ok(())
+	}
+}
