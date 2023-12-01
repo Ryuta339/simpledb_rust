@@ -19,7 +19,7 @@
 
 - TxType: 32 bits
 - TxNumber: 32 bits
-- FileName: length of filename + 32 bits
+- FileName: length of filename (32 bits) + "the filename"
 - No. of Block: 32 bits
 - Offset: 32 bits
 - Value: length of the string value
@@ -29,7 +29,7 @@
 
 - TxType: 32 bits
 - TxNumber: 32 bits
-- FileName: length of filename + 32 bits
+- FileName: length of filename (32 bits) + "the filename"
 - No. of Block: 32 bits
 - Offset: 32 bits
 - value: 32 bits

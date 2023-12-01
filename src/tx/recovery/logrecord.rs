@@ -363,13 +363,37 @@ mod tests {
 
 	#[test]
 	fn test_create_log_record() -> Result<()> {
+		let testfiles = ["testfile_seti32_record", "testfile_setstring_record"];
+		let mut v0 = vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x0B, 0x00, 0x07];
+		// length of filename (32 bits) and "the filename"
+		v0.append(&mut vec![0x00, 0x00, 0x00, testfiles[0].len() as u8]);
+		v0.append(&mut String::from(testfiles[0]).into_bytes());
+		// no. of block
+		v0.append(&mut vec![0x00, 0x00, 0x00, 0x01]);
+		// offset
+		v0.append(&mut vec![0x00 as u8; 4]);
+		// value
+		v0.append(&mut vec![0x00, 0x00, 0x00, 0x01]);
+
+		let mut v1 = vec![0x00, 0x00, 0x00, 0x05, 0x01, 0x00, 0x10, 0x00];
+		let teststring = "A database system is a common, visible tool in the corporate world--employees frequently interact directly with database systems to submit data or create reports.";
+		// length of filename (32 bits) and "the filename"
+		v1.append(&mut vec![0x00, 0x00, 0x00, testfiles[1].len() as u8]);
+		v1.append(&mut String::from(testfiles[1]).into_bytes());
+		// no. of block
+		v1.append(&mut vec![0x00, 0x00, 0x00, 0x01]);
+		// offset
+		v1.append(&mut vec![0x00 as u8; 4]);
+		// value
+		v1.append(&mut vec![0x00, 0x00, 0x00, teststring.len() as u8]);
+		v1.append(&mut String::from(teststring).into_bytes());
 		let tests_list: Vec<(Vec<u8>, TxType, i32)> = vec![
 			(vec![0x00, 0x00, 0x00, 0x00], TxType::CHECKPOINT, -1),
-			(vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF], TxType::START, 255),
-			(vec![0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xDD, 0xFF], TxType::COMMIT, 56831),
-			(vec![0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0A], TxType::ROLLBACK, 10),
-			// (vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x0B, 0x00, 0x07], TxType::SETI32, 720903),
-			// (vec![0x00, 0x00, 0x00, 0x05, 0x01, 0x00, 0x10, 0x00], TxType::SETSTRING, 16781312),
+			(vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF], TxType::START, 0xFF),
+			(vec![0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xDD, 0xFF], TxType::COMMIT, 0xDDFF),
+			(vec![0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0A], TxType::ROLLBACK, 0x0A),
+			(v0, TxType::SETI32, 0xB0007),
+			(v1, TxType::SETSTRING, 0x1001000),
 		];
 
 		tests_list.iter().for_each(|(bytes, expected_txtype, expected_txnum)| {
