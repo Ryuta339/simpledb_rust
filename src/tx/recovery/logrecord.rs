@@ -361,40 +361,138 @@ impl SetStringRecord {
 mod tests {
 	use super::*;
 
+	trait TestRecordCreator {
+		fn create(&self) -> (Vec<u8>, TxType, i32);
+	}
+
+	struct TestCheckoutRecordCreator;
+	impl TestRecordCreator for TestCheckoutRecordCreator {
+		fn create(&self) -> (Vec<u8>, TxType, i32) {
+			(vec![0x00, 0x00, 0x00, 0x00], TxType::CHECKPOINT, -1)
+		}
+	}
+
+	struct TestSimpleRecordCreator {
+		txtype: TxType,
+		txnum: i32,
+	}
+	impl TestRecordCreator for TestSimpleRecordCreator {
+		fn create(&self) -> (Vec<u8>, TxType, i32) {
+			let b = self.txnum.to_be_bytes();
+			(
+				vec![0x00, 0x00, 0x00, self.txtype as u8, b[0], b[1], b[2], b[3]],
+				self.txtype,
+				self.txnum,
+			)
+		}
+	}
+	impl TestSimpleRecordCreator {
+		fn new(txtype: TxType) -> Self {
+			Self { 
+				txtype,
+				txnum: rand::random::<i32>(),
+			}
+		}
+
+		fn new_test_start_record() -> Self {
+			TestSimpleRecordCreator::new(TxType::START)
+		}
+
+		fn new_test_commit_record() -> Self {
+			TestSimpleRecordCreator::new(TxType::COMMIT)
+		}
+
+		fn new_test_rollback_record() -> Self {
+			TestSimpleRecordCreator::new(TxType::ROLLBACK)
+		}
+	}
+
+	enum DataType {
+		DataI32(i32),
+		DataString(String),
+	}
+	impl DataType {
+		fn to_vec(&self) -> Vec<u8> {
+			match self {
+				DataType::DataI32(i) => Vec::from(i.to_be_bytes()),
+				DataType::DataString(s) => {
+					let mut v = Vec::from((s.len() as u32).to_be_bytes());
+					v.append(&mut Vec::from(s.clone().into_bytes()));
+					v
+				},
+			}
+		}
+	}
+
+	struct TestDataRecordCreator {
+		txtype: TxType,
+		txnum: i32,
+		filename: String,
+		block_id: u32,
+		offset: u32,
+		data: DataType,
+	}
+	impl TestRecordCreator for TestDataRecordCreator {
+		fn create(&self) -> (Vec<u8>, TxType, i32) {
+			let mut v = vec![0x00, 0x00, 0x00, self.txtype as u8];
+			v.append(&mut Vec::from(self.txnum.to_be_bytes()));
+			// length of filename (32 bits) and "the filename"
+			v.append(&mut Vec::from((self.filename.len() as u32).to_be_bytes()));
+			v.append(&mut Vec::from(self.filename.clone().into_bytes()));
+			// no. of block
+			v.append(&mut Vec::from(self.block_id.to_be_bytes()));
+			// offset
+			v.append(&mut Vec::from(self.offset.to_be_bytes()));
+			// value
+			v.append(&mut self.data.to_vec());
+
+			(v, self.txtype, self.txnum)
+		}
+	}
+
+	impl TestDataRecordCreator {
+		fn new(txtype: TxType, filename: &str, data: DataType) -> Self {
+			Self {
+				txtype,
+				txnum: rand::random::<i32>(),
+				filename: String::from(filename),
+				block_id: rand::random::<u32>(),
+				offset: 0,
+				data,
+			}
+		}
+
+		fn new_test_i32_record(filename: &str, data: i32) -> Self {
+			TestDataRecordCreator::new(TxType::SETI32, filename, DataType::DataI32(data))
+		}
+
+		fn new_test_string_record(filename: &str, data: &str) -> Self {
+			TestDataRecordCreator::new(TxType::SETSTRING, filename, DataType::DataString(String::from(data)))
+		}
+	}
+
+	fn create_tests_list() -> Vec<(Vec<u8>, TxType, i32)> {
+		let creators_list: Vec<Box<dyn TestRecordCreator>> = vec![
+			Box::new(TestCheckoutRecordCreator{}),
+			Box::new(TestSimpleRecordCreator::new_test_start_record()),
+			Box::new(TestSimpleRecordCreator::new_test_commit_record()),
+			Box::new(TestSimpleRecordCreator::new_test_rollback_record()),
+			Box::new(TestDataRecordCreator::new_test_i32_record(
+				"testfile_seti32_record",
+				rand::random::<i32>(),
+			)),
+			Box::new(TestDataRecordCreator::new_test_string_record(
+				"testfile_setstring_record",
+				"A database system is a common, visible tool in the corporate world--employees frequently interact directly with database systems to submit data or create reports.",
+			)),
+		];
+
+		creators_list.iter().map(|x| x.create()).collect()
+	}
+
 	#[test]
 	fn test_create_log_record() -> Result<()> {
-		let testfiles = ["testfile_seti32_record", "testfile_setstring_record"];
-		let mut v0 = vec![0x00, 0x00, 0x00, 0x04, 0x00, 0x0B, 0x00, 0x07];
-		// length of filename (32 bits) and "the filename"
-		v0.append(&mut vec![0x00, 0x00, 0x00, testfiles[0].len() as u8]);
-		v0.append(&mut String::from(testfiles[0]).into_bytes());
-		// no. of block
-		v0.append(&mut vec![0x00, 0x00, 0x00, 0x01]);
-		// offset
-		v0.append(&mut vec![0x00 as u8; 4]);
-		// value
-		v0.append(&mut vec![0x00, 0x00, 0x00, 0x01]);
-
-		let mut v1 = vec![0x00, 0x00, 0x00, 0x05, 0x01, 0x00, 0x10, 0x00];
-		let teststring = "A database system is a common, visible tool in the corporate world--employees frequently interact directly with database systems to submit data or create reports.";
-		// length of filename (32 bits) and "the filename"
-		v1.append(&mut vec![0x00, 0x00, 0x00, testfiles[1].len() as u8]);
-		v1.append(&mut String::from(testfiles[1]).into_bytes());
-		// no. of block
-		v1.append(&mut vec![0x00, 0x00, 0x00, 0x01]);
-		// offset
-		v1.append(&mut vec![0x00 as u8; 4]);
-		// value
-		v1.append(&mut vec![0x00, 0x00, 0x00, teststring.len() as u8]);
-		v1.append(&mut String::from(teststring).into_bytes());
-		let tests_list: Vec<(Vec<u8>, TxType, i32)> = vec![
-			(vec![0x00, 0x00, 0x00, 0x00], TxType::CHECKPOINT, -1),
-			(vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF], TxType::START, 0xFF),
-			(vec![0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xDD, 0xFF], TxType::COMMIT, 0xDDFF),
-			(vec![0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0A], TxType::ROLLBACK, 0x0A),
-			(v0, TxType::SETI32, 0xB0007),
-			(v1, TxType::SETSTRING, 0x1001000),
-		];
+		let tests_list = create_tests_list();
 
 		tests_list.iter().for_each(|(bytes, expected_txtype, expected_txnum)| {
 			let actual: Box<dyn LogRecord> = <dyn LogRecord>::create_log_record(bytes.to_vec()).unwrap();
