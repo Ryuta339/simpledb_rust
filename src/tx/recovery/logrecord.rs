@@ -203,6 +203,31 @@ impl RollbackRecord {
 	}
 }
 
+
+trait AbstractDataRecord {
+	fn new(p: Page) -> Result<Self> where Self: Sized {
+		let tpos = mem::size_of::<i32>();
+		let txnum = p.get_i32(tpos)?;
+		let fpos = tpos + mem::size_of::<i32>();
+		let filename = p.get_string(fpos)?;
+		let bpos = fpos + Page::max_length(filename.len());
+		let blknum = p.get_i32(bpos)?;
+		let blk = BlockId::new(&filename, blknum as u64);
+		let opos = bpos + mem::size_of::<i32>();
+		let offset = p.get_i32(opos)?;
+		let vpos = opos + mem::size_of::<i32>();
+
+		AbstractDataRecord::new_from_vpos(p, txnum, offset, vpos, blk)
+	}
+
+	fn new_from_vpos(
+		p: Page,
+		txnum: i32,
+		offset: i32,
+		vpos: usize,
+		blk: BlockId) -> Result<Self> where Self: Sized;
+}
+
 pub struct SetI32Record {
 	txnum: i32,
 	offset: i32,
@@ -232,20 +257,15 @@ impl LogRecord for SetI32Record {
 	}
 }
 
-impl SetI32Record {
-	pub fn new(p: Page) -> Result<Self> {
-		let tpos = mem::size_of::<i32>();
-		let txnum = p.get_i32(tpos)?;
-		let fpos = tpos + mem::size_of::<i32>();
-		let filename = p.get_string(fpos)?;
-		let bpos = fpos + Page::max_length(filename.len());
-		let blknum = p.get_i32(bpos)?;
-		let blk = BlockId::new(&filename, blknum as u64);
-		let opos = bpos + mem::size_of::<i32>();
-		let offset = p.get_i32(opos)?;
-		let vpos = opos + mem::size_of::<i32>();
+impl AbstractDataRecord for SetI32Record {
+	fn new_from_vpos(
+		p: Page,
+		txnum: i32,
+		offset: i32,
+		vpos: usize,
+		blk: BlockId,
+	) -> Result<Self> where Self: Sized {
 		let val = p.get_i32(vpos)?;
-
 		Ok(Self {
 			txnum,
 			offset,
@@ -253,7 +273,9 @@ impl SetI32Record {
 			blk,
 		})
 	}
+}
 
+impl SetI32Record {
 	pub fn write_to_log(
 		lm: Arc<RefCell<LogMgr>>,
 		txnum: i32,
