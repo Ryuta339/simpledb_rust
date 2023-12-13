@@ -331,18 +331,14 @@ impl LogRecord for SetStringRecord {
 	}
 }
 
-impl SetStringRecord {
-	pub fn new(p: Page) -> Result<Self> {
-		let tpos = mem::size_of::<i32>();
-		let txnum = p.get_i32(tpos)?;
-		let fpos = tpos + mem::size_of::<i32>();
-		let filename = p.get_string(fpos)?;
-		let bpos = fpos + Page::max_length(filename.len());
-		let blknum = p.get_i32(bpos)?;
-		let blk = BlockId::new(&filename, blknum as u64);
-		let opos = bpos + mem::size_of::<i32>();
-		let offset = p.get_i32(opos)?;
-		let vpos = opos + mem::size_of::<i32>();
+impl AbstractDataRecord for SetStringRecord {
+	fn new_from_vpos(
+		p: Page,
+		txnum: i32,
+		offset: i32,
+		vpos: usize,
+		blk: BlockId,
+	) -> Result<Self> {
 		let val = p.get_string(vpos)?;
 
 		Ok(Self {
@@ -352,7 +348,9 @@ impl SetStringRecord {
 			blk,
 		})
 	}
+}
 
+impl SetStringRecord {
 	pub fn write_to_log(
 		lm: Arc<RefCell<LogMgr>>,
 		txnum: i32,
@@ -537,6 +535,23 @@ mod tests {
 		let expected = match test_rec.data {
 			DataType::DataI32(i) => Some(i),
 			_ => None, // よくないでしょこれ
+		};
+		assert_eq!(rec.val, expected.unwrap());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_set_string_record_new() -> Result<()> {
+		let test_rec = TestDataRecordCreator::new_test_string_record(
+			"testfile_setstring_record",
+			"A database system is a common, visible tool in the corporate world--employees frequently interact directly with database systems to submit data or create reports.",
+		);
+		let (bytes, _, _) = test_rec.create();
+		let rec = SetStringRecord::new(Page::new_from_bytes(bytes)).unwrap();
+		let expected = match test_rec.data {
+			DataType::DataString(s) => Some(s),
+			_ => None,
 		};
 		assert_eq!(rec.val, expected.unwrap());
 
