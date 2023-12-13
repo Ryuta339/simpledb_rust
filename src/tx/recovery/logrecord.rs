@@ -502,4 +502,22 @@ mod tests {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_set_i32_record_new() -> Result<()> {
+		let test_rec = TestDataRecordCreator::new_test_i32_record(
+			"testfile_seti32_record",
+			rand::random::<i32>(),
+		);
+		let (bytes, _, _) = test_rec.create();
+
+		let rec = SetI32Record::new(Page::new_from_bytes(bytes)).unwrap();
+		let expected = match test_rec.data {
+			DataType::DataI32(i) => Some(i),
+			_ => None, // よくないでしょこれ
+		};
+		assert_eq!(rec.val, expected.unwrap());
+
+		Ok(())
+	}
 }
