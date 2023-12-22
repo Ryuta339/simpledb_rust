@@ -381,6 +381,9 @@ impl SetStringRecord {
 mod tests {
 	use super::*;
 
+	use crate::file::{block_id::BlockId, manager::FileMgr};
+	use crate::log::manager::LogMgr;
+
 	trait TestRecordCreator {
 		fn create(&self) -> (Vec<u8>, TxType, i32);
 	}
@@ -554,6 +557,38 @@ mod tests {
 			_ => None,
 		};
 		assert_eq!(rec.val, expected.unwrap());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_set_i32_record_write_to_log() -> Result<()> {
+		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
+		let fm_arc = Arc::new(RefCell::new(fm));
+		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb.log").unwrap();
+		let lm_arc = Arc::new(RefCell::new(lm));
+		let block_id = BlockId::new("testfile", 2);
+		let _ = SetI32Record::write_to_log(Arc::clone(&lm_arc), 10, block_id, 2, 0xFF);
+		let rec = SetI32Record::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
+		assert_eq!(rec.val, 0xFF);
+		assert_eq!(rec.txnum, 10);
+		assert_eq!(rec.offset, 2);
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_set_string_record_write_to_log() -> Result<()> {
+		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
+		let fm_arc = Arc::new(RefCell::new(fm));
+		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb.log").unwrap();
+		let lm_arc = Arc::new(RefCell::new(lm));
+		let block_id = BlockId::new("testfile", 2);
+		let _ = SetStringRecord::write_to_log(Arc::clone(&lm_arc), 10, block_id, 2, String::from("teststring"));
+		let rec = SetStringRecord::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
+		assert_eq!(rec.val, "teststring");
+		assert_eq!(rec.txnum, 10);
+		assert_eq!(rec.offset, 2);
 
 		Ok(())
 	}
