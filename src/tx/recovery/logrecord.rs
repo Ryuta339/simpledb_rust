@@ -204,7 +204,7 @@ impl RollbackRecord {
 }
 
 
-trait AbstractDataRecord {
+trait AbstractDataRecord<T> {
 	fn new(p: Page) -> Result<Self> where Self: Sized {
 		let tpos = mem::size_of::<i32>();
 		let txnum = p.get_i32(tpos)?;
@@ -226,6 +226,35 @@ trait AbstractDataRecord {
 		offset: i32,
 		vpos: usize,
 		blk: BlockId) -> Result<Self> where Self: Sized;
+
+	fn write_to_log(
+		lm: Arc<RefCell<LogMgr>>,
+		txnum: i32,
+		blk: BlockId,
+		offset: i32,
+		val: T
+	) -> Result<u64> {
+		let tpos = mem::size_of::<i32>();
+		let fpos = tpos + mem::size_of::<i32>();
+		let bpos = fpos + Page::max_length(blk.file_name().len());
+		let opos = bpos + mem::size_of::<i32>();
+		let vpos = opos + mem::size_of::<i32>();
+		let reclen = vpos + Self::get_data_size(&val);
+
+		let mut p = Page::new_from_size(reclen);
+		Self::set_txtype_as_i32(&mut p)?;
+		p.set_i32(tpos, txnum)?;
+		p.set_string(fpos, blk.file_name())?;
+		p.set_i32(bpos, blk.number() as i32)?;
+		p.set_i32(opos, offset)?;
+		Self::set_value(&mut p, vpos, val)?;
+		
+		lm.borrow_mut().append(p.contents())
+	}
+
+	fn get_data_size(val: &T) -> usize;
+	fn set_txtype_as_i32(p: &mut Page) -> Result<()>;
+	fn set_value(p: &mut Page, vpos: usize, val: T) -> Result<()>;
 }
 
 pub struct SetI32Record {
@@ -257,7 +286,7 @@ impl LogRecord for SetI32Record {
 	}
 }
 
-impl AbstractDataRecord for SetI32Record {
+impl AbstractDataRecord<i32> for SetI32Record {
 	fn new_from_vpos(
 		p: Page,
 		txnum: i32,
@@ -273,32 +302,19 @@ impl AbstractDataRecord for SetI32Record {
 			blk,
 		})
 	}
-}
 
-impl SetI32Record {
-	pub fn write_to_log(
-		lm: Arc<RefCell<LogMgr>>,
-		txnum: i32,
-		blk: BlockId,
-		offset: i32,
-		val: i32,
-	) -> Result<u64> {
-		let tpos = mem::size_of::<i32>();
-		let fpos = tpos + mem::size_of::<i32>();
-		let bpos = fpos + Page::max_length(blk.file_name().len());
-		let opos = bpos + mem::size_of::<i32>();
-		let vpos = opos + mem::size_of::<i32>();
-		let reclen = vpos + mem::size_of::<i32>();
+	fn get_data_size(val: &i32) -> usize {
+		mem::size_of::<i32>()
+	}
 
-		let mut p = Page::new_from_size(reclen as usize);
+	fn set_txtype_as_i32(p: &mut Page) -> Result<()> {
 		p.set_i32(0, TxType::SETI32 as i32)?;
-		p.set_i32(tpos, txnum)?;
-		p.set_string(fpos, blk.file_name())?;
-		p.set_i32(bpos, blk.number() as i32)?;
-		p.set_i32(opos, offset)?;
-		p.set_i32(vpos, val)?;
+		Ok(())
+	}
 
-		lm.borrow_mut().append(p.contents())
+	fn set_value(p: &mut Page, vpos: usize, val: i32) -> Result<()> {
+		p.set_i32(vpos, val)?;
+		Ok(())
 	}
 }
 
@@ -331,7 +347,7 @@ impl LogRecord for SetStringRecord {
 	}
 }
 
-impl AbstractDataRecord for SetStringRecord {
+impl AbstractDataRecord<String> for SetStringRecord {
 	fn new_from_vpos(
 		p: Page,
 		txnum: i32,
@@ -348,32 +364,19 @@ impl AbstractDataRecord for SetStringRecord {
 			blk,
 		})
 	}
-}
 
-impl SetStringRecord {
-	pub fn write_to_log(
-		lm: Arc<RefCell<LogMgr>>,
-		txnum: i32,
-		blk: BlockId,
-		offset: i32,
-		val: String,
-	) -> Result<u64> {
-		let tpos = mem::size_of::<i32>();
-		let fpos = tpos + mem::size_of::<i32>();
-		let bpos = fpos + Page::max_length(blk.file_name().len());
-		let opos = bpos + mem::size_of::<i32>();
-		let vpos = opos + mem::size_of::<i32>();
-		let reclen = vpos + Page::max_length(val.len());
-		
-		let mut p = Page::new_from_size(reclen);
-		p.set_i32(0, TxType::SETSTRING as i32)?;
-		p.set_i32(tpos, txnum)?;
-		p.set_string(fpos, blk.file_name())?;
-		p.set_i32(bpos, blk.number() as i32)?;
-		p.set_i32(opos, offset)?;
+	fn get_data_size(val: &String) -> usize {
+		Page::max_length(val.len())
+	}
+
+	fn set_txtype_as_i32(p: &mut Page) -> Result<()> {
+		p.set_i32(0, TxType::SETSTRING as i32);
+		Ok(())
+	}
+
+	fn set_value(p: &mut Page, vpos: usize, val: String) -> Result<()> {
 		p.set_string(vpos, val)?;
-
-		lm.borrow_mut().append(p.contents())
+		Ok(())
 	}
 }
 
@@ -565,7 +568,7 @@ mod tests {
 	fn test_set_i32_record_write_to_log() -> Result<()> {
 		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
 		let fm_arc = Arc::new(RefCell::new(fm));
-		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb.log").unwrap();
+		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb1.log").unwrap();
 		let lm_arc = Arc::new(RefCell::new(lm));
 		let block_id = BlockId::new("testfile", 2);
 		let _ = SetI32Record::write_to_log(Arc::clone(&lm_arc), 10, block_id, 2, 0xFF);
@@ -581,14 +584,14 @@ mod tests {
 	fn test_set_string_record_write_to_log() -> Result<()> {
 		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
 		let fm_arc = Arc::new(RefCell::new(fm));
-		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb.log").unwrap();
+		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb2.log").unwrap();
 		let lm_arc = Arc::new(RefCell::new(lm));
-		let block_id = BlockId::new("testfile", 2);
-		let _ = SetStringRecord::write_to_log(Arc::clone(&lm_arc), 10, block_id, 2, String::from("teststring"));
+		let block_id = BlockId::new("testfile", 3);
+		let _ = SetStringRecord::write_to_log(Arc::clone(&lm_arc), 30, block_id, 5, String::from("teststring"));
 		let rec = SetStringRecord::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
 		assert_eq!(rec.val, "teststring");
-		assert_eq!(rec.txnum, 10);
-		assert_eq!(rec.offset, 2);
+		assert_eq!(rec.txnum, 30);
+		assert_eq!(rec.offset, 5);
 
 		Ok(())
 	}
