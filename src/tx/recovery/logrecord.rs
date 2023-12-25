@@ -217,7 +217,7 @@ trait AbstractDataRecord<T> {
 		let offset = p.get_i32(opos)?;
 		let vpos = opos + mem::size_of::<i32>();
 
-		AbstractDataRecord::new_from_vpos(p, txnum, offset, vpos, blk)
+		Self::new_from_vpos(p, txnum, offset, vpos, blk)
 	}
 
 	fn new_from_vpos(
