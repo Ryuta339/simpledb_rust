@@ -10,6 +10,22 @@ use crate::{
 	tx::transaction::Transaction,
 };
 
+#[derive(Debug)]
+enum LogRecordError {
+	UnknownRecord,
+}
+
+impl std::error::Error for LogRecordError {}
+impl fmt::Display for LogRecordError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			&LogRecordError::UnknownRecord => {
+				write!(f, "unknown log record")
+			}
+		}
+	}
+}
+
 #[derive(FromPrimitive, Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TxType {
 	CHECKPOINT = 0,
@@ -38,7 +54,7 @@ impl dyn LogRecord {
 			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord::new(p)?)),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
 			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
-			None => panic!("Unsupported TxType found"),
+			None => Err(From::from(LogRecordError::UnknownRecord)),
 		}
 	}
 }
