@@ -9,6 +9,11 @@ use crate::{
 	log::manager::LogMgr,
 };
 
+mod checkpoint_record;
+mod start_record;
+mod commit_record;
+mod rollback_record;
+
 #[derive(FromPrimitive, Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TxType {
 	CHECKPOINT = 0,
@@ -31,178 +36,16 @@ impl dyn LogRecord {
 		let tx_type: i32 = p.get_i32(0)?;
 
 		match FromPrimitive::from_i32(tx_type) {
-			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord::new(p)?)),
-			Some(TxType::START) => Ok(Box::new(StartRecord::new(p)?)),
-			Some(TxType::COMMIT) => Ok(Box::new(CommitRecord::new(p)?)),
-			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord::new(p)?)),
+			Some(TxType::CHECKPOINT) => Ok(Box::new(checkpoint_record::CheckpointRecord::new(p)?)),
+			Some(TxType::START) => Ok(Box::new(start_record::StartRecord::new(p)?)),
+			Some(TxType::COMMIT) => Ok(Box::new(commit_record::CommitRecord::new(p)?)),
+			Some(TxType::ROLLBACK) => Ok(Box::new(rollback_record::RollbackRecord::new(p)?)),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
 			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
 			None => panic!("Unsupported TxType found"),
 		}
 	}
 }
-
-pub struct CheckpointRecord {}
-
-impl fmt::Display for CheckpointRecord {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "<CHECKPOINT>")
-	}
-}
-
-impl LogRecord for CheckpointRecord {
-	fn op(&self) -> TxType {
-		TxType::CHECKPOINT
-	}
-	fn tx_number(&self) -> i32 {
-		-1 // dummy value
-	}
-	fn undo(&self, txnum: i32) -> Option<()> {
-		panic!("TODO");
-	}
-}
-
-impl CheckpointRecord {
-	pub fn new(p: Page) -> Result<Self> {
-		Ok(Self {})
-	}
-
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>) -> Result<u64> {
-		let reclen = mem::size_of::<i32>();
-
-		let mut p = Page::new_from_size(reclen);
-		p.set_i32(0, TxType::CHECKPOINT as i32)?;
-
-		lm.borrow_mut().append(p.contents())
-	}
-}
-
-pub struct StartRecord {
-	txnum: i32,
-}
-
-impl fmt::Display for StartRecord {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "<START {}>", self.txnum)
-	}
-}
-
-impl LogRecord for StartRecord {
-	fn op(&self) -> TxType {
-		TxType::START
-	}
-	fn tx_number(&self) -> i32 {
-		self.txnum
-	}
-	fn undo(&self, txnum: i32) -> Option<()> {
-		panic!("TODO");
-	}
-}
-
-impl StartRecord {
-	pub fn new(p: Page) -> Result<Self> {
-		let tpos = mem::size_of::<i32>();
-		let txnum = p.get_i32(tpos)?;
-
-		Ok(Self { txnum })
-	}
-
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
-		let tpos = mem::size_of::<i32>();
-		let reclen = tpos + mem::size_of::<i32>();
-
-		let mut p = Page::new_from_size(reclen as usize);
-		p.set_i32(0, TxType::START as i32)?;
-		p.set_i32(tpos, txnum)?;
-
-		lm.borrow_mut().append(p.contents())
-	}
-}
-
-pub struct CommitRecord {
-	txnum: i32,
-}
-
-impl fmt::Display for CommitRecord {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "<COMIIT {}>", self.txnum)
-	}
-}
-
-impl LogRecord for CommitRecord {
-	fn op(&self) -> TxType {
-		TxType::COMMIT
-	}
-	fn tx_number(&self) -> i32 {
-		self.txnum
-	}
-	fn undo(&self, txnum: i32) -> Option<()> {
-		panic!("TODO");
-	}
-}
-
-impl CommitRecord {
-	pub fn new (p: Page) -> Result<Self> {
-		let tpos = mem::size_of::<i32>();
-		let txnum = p.get_i32(tpos)?;
-
-		Ok(Self { txnum })
-	}
-
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
-		let tpos = mem::size_of::<i32>();
-		let reclen = tpos + mem::size_of::<i32>();
-
-		let mut p = Page::new_from_size(reclen as usize);
-		p.set_i32(0, TxType::COMMIT as i32)?;
-		p.set_i32(tpos, txnum)?;
-
-		lm.borrow_mut().append(p.contents())
-	}
-}
-
-pub struct RollbackRecord {
-	txnum: i32,
-}
-
-impl fmt::Display for RollbackRecord {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "<ROLLBACK {}>", self.txnum)
-	}
-}
-
-impl LogRecord for RollbackRecord {
-	fn op(&self) -> TxType {
-		TxType::ROLLBACK
-	}
-	fn tx_number(&self) -> i32 {
-		self.txnum
-	}
-	fn undo(&self, txnum: i32) -> Option<()> {
-		panic!("TODO");
-	}
-}
-
-impl RollbackRecord {
-	pub fn new(p: Page) -> Result<Self> {
-		let tpos = mem::size_of::<i32>();
-		let txnum = p.get_i32(tpos)?;
-
-		Ok(Self { txnum })
-	}
-
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
-		let tpos = mem::size_of::<i32>();
-		let reclen = tpos + mem::size_of::<i32>();
-
-		let mut p = Page::new_from_size(reclen as usize);
-		p.set_i32(0, TxType::ROLLBACK as i32)?;
-		p.set_i32(tpos, txnum)?;
-
-		lm.borrow_mut().append(p.contents())
-	}
-}
-
 
 trait AbstractDataRecord<T> {
 	fn new(p: Page) -> Result<Self> where Self: Sized {
