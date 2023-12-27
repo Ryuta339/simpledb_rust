@@ -39,7 +39,7 @@ pub enum TxType {
 pub trait LogRecord {
 	fn op(&self) -> TxType;
 	fn tx_number(&self) -> i32;
-	fn undo(&self, tx: Transaction) -> Option<()>;
+	fn undo(&self, tx: &mut Transaction) -> Result<()>;
 }
 
 impl dyn LogRecord {
@@ -74,7 +74,7 @@ impl LogRecord for CheckpointRecord {
 	fn tx_number(&self) -> i32 {
 		-1 // dummy value
 	}
-	fn undo(&self, tx: Transaction) -> Option<()> {
+	fn undo(&self, tx: &mut Transaction) -> Result<()> {
 		panic!("TODO");
 	}
 }
@@ -111,7 +111,7 @@ impl LogRecord for StartRecord {
 	fn tx_number(&self) -> i32 {
 		self.txnum
 	}
-	fn undo(&self, tx: Transaction) -> Option<()> {
+	fn undo(&self, tx: &mut Transaction) -> Result<()> {
 		panic!("TODO");
 	}
 }
@@ -153,7 +153,7 @@ impl LogRecord for CommitRecord {
 	fn tx_number(&self) -> i32 {
 		self.txnum
 	}
-	fn undo(&self, tx: Transaction) -> Option<()> {
+	fn undo(&self, tx: &mut Transaction) -> Result<()> {
 		panic!("TODO");
 	}
 }
@@ -195,7 +195,7 @@ impl LogRecord for RollbackRecord {
 	fn tx_number(&self) -> i32 {
 		self.txnum
 	}
-	fn undo(&self, tx: Transaction) -> Option<()> {
+	fn undo(&self, tx: &mut Transaction) -> Result<()> {
 		panic!("TODO");
 	}
 }
@@ -298,7 +298,7 @@ impl LogRecord for SetI32Record {
 	fn tx_number(&self) -> i32 {
 		self.txnum
 	}
-	fn undo(&self, tx: Transaction) -> Option<()> {
+	fn undo(&self, tx: &mut Transaction) -> Result<()> {
 		panic!("TODO");
 	}
 }
@@ -359,8 +359,12 @@ impl LogRecord for SetStringRecord {
 	fn tx_number(&self) -> i32 {
 		self.txnum
 	}
-	fn undo(&self, tx: Transaction) -> Option<()> {
-		panic!("TODO");
+	fn undo(&self, tx: &mut Transaction) -> Result<()> {
+		tx.pin(&self.blk)?;
+		tx.set_string(&self.blk, self.offset, self.val.as_str(), false)?;
+		tx.unpin(&self.blk)?;
+
+		Ok(())
 	}
 }
 
