@@ -136,3 +136,44 @@ impl Page {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_set_i32() {
+		let mut p = Page::new_from_size(10);
+		let _ = p.set_i32(0, 0x10203040);
+		let _ = p.set_i32(5, 0x789ABCDE);
+		let actual_list = p.contents();
+		let expected_list: Vec<u8> = vec![0x10, 0x20, 0x30, 0x40, 0x00, 0x78, 0x9A, 0xBC, 0xDE, 0x00];
+		for (expected, actual) in izip!(&expected_list, actual_list) {
+			assert_eq!(*actual, *expected);
+		}
+	}
+
+	#[test]
+	fn test_set_string() {
+		let mut p = Page::new_from_size(32);
+		let _ = p.set_string(0, String::from("hogehoge"));
+		let _ = p.set_string(16, String::from("BRABRABRA"));
+		let actual_list = p.contents();
+		let expected_list: Vec<u8> = vec![
+			0x00, 0x00, 0x00, 0x08, 0x68, 0x6F, 0x67, 0x65,
+			0x68, 0x6F, 0x67, 0x65, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x09, 0x42, 0x52, 0x41, 0x42,
+			0x52, 0x41, 0x42, 0x52, 0x41, 0x00, 0x00, 0x00,
+		];
+		for (expected, actual) in izip!(&expected_list, actual_list) {
+			assert_eq!(*actual, *expected);
+		}
+	}
+
+	#[test]
+	fn test_should_throw_buffer_size_exceeded() {
+		let mut p = Page::new_from_size(10);
+		let e = p.set_i32(8, 0x10203040).unwrap_err();
+		assert_eq!(e.to_string(), PageError::BufferSizeExceeded.to_string());
+	}
+}
