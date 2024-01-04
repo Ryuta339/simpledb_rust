@@ -17,7 +17,7 @@ impl fmt::Display for PageError {
 	}
 }
 
-pub trait ToPageBytes: Sized {
+pub trait ToPageBytes {
 	fn to_page_bytes(&self) -> Vec<u8>;
 }
 impl ToPageBytes for i32 {
