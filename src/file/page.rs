@@ -171,9 +171,41 @@ mod tests {
 	}
 
 	#[test]
-	fn test_should_throw_buffer_size_exceeded() {
+	fn test_should_throw_buffer_size_exceeded_in_set() {
 		let mut p = Page::new_from_size(10);
-		let e = p.set_i32(8, 0x10203040).unwrap_err();
-		assert_eq!(e.to_string(), PageError::BufferSizeExceeded.to_string());
+		let e = p.set(8, 0x10203040).unwrap_err();
+		assert_eq!(PageError::BufferSizeExceeded.to_string(), e.to_string());
 	}
+
+	#[test]
+	fn test_get_i32() {
+		let test_binary: Vec<u8> = vec![0x10, 0x20, 0x30, 0x40, 0x00, 0x78, 0x9A, 0xBC, 0xDE, 0x00];
+		let p = Page::new_from_bytes(test_binary);
+		let i0 = p.get_i32(0).unwrap();
+		assert_eq!(0x10203040, i0);
+		let i1 = p.get_i32(5).unwrap();
+		assert_eq!(0x789ABCDE, i1);
+	}
+
+	#[test]
+	fn test_get_string() {
+		let test_binary: Vec<u8> = vec![
+			0x00, 0x00, 0x00, 0x08, 0x68, 0x6F, 0x67, 0x65,
+			0x68, 0x6F, 0x67, 0x65, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x09, 0x42, 0x52, 0x41, 0x42,
+			0x52, 0x41, 0x42, 0x52, 0x41, 0x00, 0x00, 0x00,
+		];
+		let p = Page::new_from_bytes(test_binary);
+		let s0 = p.get_string(0).unwrap();
+		assert_eq!("hogehoge", s0);
+		let s1 =  p.get_string(16).unwrap();
+		assert_eq!("BRABRABRA", s1);
+	}
+
+	#[test]
+	fn test_should_throw_buffer_size_exceeded_in_get() {
+		let p = Page::new_from_size(10);
+		let e = p.get_i32(8).unwrap_err();
+		assert_eq!(PageError::BufferSizeExceeded.to_string(), e.to_string());
+		}
 }
