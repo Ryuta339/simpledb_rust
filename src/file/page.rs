@@ -144,8 +144,8 @@ mod tests {
 	#[test]
 	fn test_set_i32() {
 		let mut p = Page::new_from_size(10);
-		let _ = p.set_i32(0, 0x10203040);
-		let _ = p.set_i32(5, 0x789ABCDE);
+		let _ = p.set(0, 0x10203040);
+		let _ = p.set(5, 0x789ABCDE);
 		let actual_list = p.contents();
 		let expected_list: Vec<u8> = vec![0x10, 0x20, 0x30, 0x40, 0x00, 0x78, 0x9A, 0xBC, 0xDE, 0x00];
 		for (expected, actual) in izip!(&expected_list, actual_list) {
@@ -156,8 +156,8 @@ mod tests {
 	#[test]
 	fn test_set_string() {
 		let mut p = Page::new_from_size(32);
-		let _ = p.set_string(0, String::from("hogehoge"));
-		let _ = p.set_string(16, String::from("BRABRABRA"));
+		let _ = p.set(0, String::from("hogehoge"));
+		let _ = p.set(16, String::from("BRABRABRA"));
 		let actual_list = p.contents();
 		let expected_list: Vec<u8> = vec![
 			0x00, 0x00, 0x00, 0x08, 0x68, 0x6F, 0x67, 0x65,
