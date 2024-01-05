@@ -75,7 +75,8 @@ impl LogRecord for CheckpointRecord {
 		-1 // dummy value
 	}
 	fn undo(&self, tx: &mut Transaction) -> Result<()> {
-		panic!("TODO");
+		// nop
+		Ok(())
 	}
 }
 
@@ -112,7 +113,8 @@ impl LogRecord for StartRecord {
 		self.txnum
 	}
 	fn undo(&self, tx: &mut Transaction) -> Result<()> {
-		panic!("TODO");
+		// nop
+		Ok(())
 	}
 }
 
@@ -154,7 +156,8 @@ impl LogRecord for CommitRecord {
 		self.txnum
 	}
 	fn undo(&self, tx: &mut Transaction) -> Result<()> {
-		panic!("TODO");
+		// nop
+		Ok(())
 	}
 }
 
@@ -196,7 +199,8 @@ impl LogRecord for RollbackRecord {
 		self.txnum
 	}
 	fn undo(&self, tx: &mut Transaction) -> Result<()> {
-		panic!("TODO");
+		// nop
+		Ok(())
 	}
 }
 
