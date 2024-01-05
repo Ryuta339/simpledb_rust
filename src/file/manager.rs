@@ -161,6 +161,7 @@ impl FileMgr {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::file::page::PageSetter;
 
 	#[test]
 	fn write_and_read() {
@@ -168,10 +169,10 @@ mod tests {
 		let blk = BlockId::new("testfile", 2);
 		let mut p1 = Page::new_from_size(fm.blocksize() as usize);
 		let pos1: usize = 88;
-		let _ = p1.set_string(pos1, "abcdefghijklm".to_string());
+		let _ = p1.set(pos1, "abcdefghijklm".to_string());
 		let size = Page::max_length("abcdefghijklm".len());
 		let pos2: usize = pos1 + size;
-		let _ = p1.set_i32(pos2, 345);
+		let _ = p1.set(pos2, 345);
 		let _ = fm.write(&blk, &mut p1);
 
 		let mut p2 = Page::new_from_size(fm.blocksize() as usize);

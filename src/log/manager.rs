@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::file::block_id::BlockId;
 use crate::file::manager::FileMgr;
-use crate::file::page::Page;
+use crate::file::page::{Page, PageSetter};
 
 use super::iterator::LogIterator;
 
@@ -44,7 +44,7 @@ impl LogMgr {
 
 		if logsize == 0 {
 			let blk = fm.borrow_mut().append(logfile)?;
-			logpage.set_i32(0, fm.borrow().blocksize() as i32)?;
+			logpage.set(0, fm.borrow().blocksize() as i32)?;
 			fm.borrow_mut().write(&blk, &mut logpage)?;
 
 			logmgr = Self {
@@ -104,8 +104,9 @@ impl LogMgr {
 			}
 
 			let recpos = (boundary - bytes_needed) as usize;
-			self.logpage.set_bytes(recpos, logrec)?;
-			self.logpage.set_i32(0, recpos as i32)?;
+			// &Vec<u8>を渡しても&[u8]と解釈されないため，as_slice()を用いている
+			self.logpage.set(recpos, logrec.as_slice())?;
+			self.logpage.set(0, recpos as i32)?;
 			self.latest_lsn += 1;
 
 			return Ok(self.last_saved_lsn);
@@ -126,7 +127,7 @@ impl LogMgr {
 	fn append_newblk(&mut self) -> Result<BlockId> {
 		let blk = self.fm.borrow_mut().append(self.logfile.as_str())?;
 		self.logpage
-			.set_i32(0, self.fm.borrow().blocksize() as i32)?;
+			.set(0, self.fm.borrow().blocksize() as i32)?;
 		self.fm.borrow_mut().write(&blk, &mut self.logpage)?;
 
 		Ok(blk)
@@ -210,8 +211,8 @@ mod tests {
 		// let b = Vec::<u8>::with_capacity(npos + 32);
 		let b = vec![0u8; npos+32];
 		let mut p = Page::new_from_bytes(b);
-		let _ = p.set_string(0, s.to_string())?;
-		let _ = p.set_i32(npos, n)?;
+		let _ = p.set(0, s.to_string())?;
+		let _ = p.set(npos, n)?;
 		Ok(p.contents().clone())
 	}
 }

@@ -112,7 +112,7 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::file::{block_id::BlockId, manager::FileMgr};
+	use crate::file::{block_id::BlockId, manager::FileMgr, page::PageSetter};
 	use crate::log::manager::LogMgr;
 	use crate::buffer::manager::BufferMgr;
 
@@ -132,7 +132,7 @@ mod tests {
 			let mut b1 = buff1.borrow_mut();
 			let p = b1.contents();
 			let n = p.get_i32(80).unwrap();
-			let _ = p.set_i32(80, n+1);
+			let _ = p.set(80, n+1);
 			b1.set_modified(1, 0);
 			println!("The new value is {}", n + 1);
 		}
@@ -149,7 +149,7 @@ mod tests {
 			// In this block, buff2 is borrowed and cannot be used
 			let mut b2 = buff2.borrow_mut();
 			let p = b2.contents();
-			let _ = p.set_i32(80, 9999);
+			let _ = p.set(80, 9999);
 			b2.set_modified(1, 0);
 		}
 		let _ = bm.unpin(buff2);

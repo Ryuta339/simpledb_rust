@@ -1,3 +1,4 @@
+pub mod types;
 pub mod buffer;
 pub mod file;
 pub mod log;
