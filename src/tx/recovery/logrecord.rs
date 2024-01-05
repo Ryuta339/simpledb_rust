@@ -299,7 +299,11 @@ impl LogRecord for SetI32Record {
 		self.txnum
 	}
 	fn undo(&self, tx: &mut Transaction) -> Result<()> {
-		panic!("TODO");
+		tx.pin(&self.blk)?;
+		tx.set_i32(&self.blk, self.offset, self.val, false)?;
+		tx.unpin(&self.blk)?;
+
+		Ok(())
 	}
 }
 
