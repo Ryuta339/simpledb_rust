@@ -38,7 +38,7 @@ impl ToPageBytes for String {
 	}
 }
 
-trait Setter<T: ToPageBytes> {
+pub trait Setter<T: ToPageBytes> {
 	fn set (&mut self, offset: usize, t: T) -> Result<usize>;
 }
 

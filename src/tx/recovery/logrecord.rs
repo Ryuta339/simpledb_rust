@@ -5,7 +5,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 use crate::{
-	file::{block_id::BlockId, page::Page},
+	file::{block_id::BlockId, page::{Page, Setter}},
 	log::manager::LogMgr,
 	tx::transaction::Transaction,
 };
@@ -88,7 +88,7 @@ impl CheckpointRecord {
 		let reclen = mem::size_of::<i32>();
 
 		let mut p = Page::new_from_size(reclen);
-		p.set_i32(0, TxType::CHECKPOINT as i32)?;
+		p.set(0, TxType::CHECKPOINT as i32)?;
 
 		lm.borrow_mut().append(p.contents())
 	}
@@ -129,8 +129,8 @@ impl StartRecord {
 		let reclen = tpos + mem::size_of::<i32>();
 
 		let mut p = Page::new_from_size(reclen as usize);
-		p.set_i32(0, TxType::START as i32)?;
-		p.set_i32(tpos, txnum)?;
+		p.set(0, TxType::START as i32)?;
+		p.set(tpos, txnum)?;
 
 		lm.borrow_mut().append(p.contents())
 	}
@@ -171,8 +171,8 @@ impl CommitRecord {
 		let reclen = tpos + mem::size_of::<i32>();
 
 		let mut p = Page::new_from_size(reclen as usize);
-		p.set_i32(0, TxType::COMMIT as i32)?;
-		p.set_i32(tpos, txnum)?;
+		p.set(0, TxType::COMMIT as i32)?;
+		p.set(tpos, txnum)?;
 
 		lm.borrow_mut().append(p.contents())
 	}
@@ -213,8 +213,8 @@ impl RollbackRecord {
 		let reclen = tpos + mem::size_of::<i32>();
 
 		let mut p = Page::new_from_size(reclen as usize);
-		p.set_i32(0, TxType::ROLLBACK as i32)?;
-		p.set_i32(tpos, txnum)?;
+		p.set(0, TxType::ROLLBACK as i32)?;
+		p.set(tpos, txnum)?;
 
 		lm.borrow_mut().append(p.contents())
 	}
@@ -260,10 +260,10 @@ trait AbstractDataRecord<T> {
 
 		let mut p = Page::new_from_size(reclen);
 		Self::set_txtype_as_i32(&mut p)?;
-		p.set_i32(tpos, txnum)?;
-		p.set_string(fpos, blk.file_name())?;
-		p.set_i32(bpos, blk.number() as i32)?;
-		p.set_i32(opos, offset)?;
+		p.set(tpos, txnum)?;
+		p.set(fpos, blk.file_name())?;
+		p.set(bpos, blk.number() as i32)?;
+		p.set(opos, offset)?;
 		Self::set_value(&mut p, vpos, val)?;
 		
 		lm.borrow_mut().append(p.contents())
@@ -325,12 +325,12 @@ impl AbstractDataRecord<i32> for SetI32Record {
 	}
 
 	fn set_txtype_as_i32(p: &mut Page) -> Result<()> {
-		p.set_i32(0, TxType::SETI32 as i32)?;
+		p.set(0, TxType::SETI32 as i32)?;
 		Ok(())
 	}
 
 	fn set_value(p: &mut Page, vpos: usize, val: i32) -> Result<()> {
-		p.set_i32(vpos, val)?;
+		p.set(vpos, val)?;
 		Ok(())
 	}
 }
@@ -391,7 +391,7 @@ impl AbstractDataRecord<String> for SetStringRecord {
 	}
 
 	fn set_txtype_as_i32(p: &mut Page) -> Result<()> {
-		p.set_i32(0, TxType::SETSTRING as i32);
+		p.set(0, TxType::SETSTRING as i32);
 		Ok(())
 	}
 
