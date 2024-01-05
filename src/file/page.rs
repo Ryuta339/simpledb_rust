@@ -19,7 +19,7 @@ impl fmt::Display for PageError {
 	}
 }
 
-pub trait Setter<T: ToPageBytes> {
+pub trait PageSetter<T: ToPageBytes> {
 	fn set (&mut self, offset: usize, t: T) -> Result<usize>;
 }
 
@@ -27,7 +27,7 @@ pub struct Page {
 	bb: Vec<u8>,
 }
 
-impl<T: ToPageBytes> Setter<T> for Page {
+impl<T: ToPageBytes> PageSetter<T> for Page {
 	fn set (&mut self, offset: usize, t: T) -> Result<usize> {
 		let bytes = t.to_page_bytes();
 		self.set_page_bytes(offset, bytes)

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::file::block_id::BlockId;
 use crate::file::manager::FileMgr;
-use crate::file::page::{Page, Setter};
+use crate::file::page::{Page, PageSetter};
 
 use super::iterator::LogIterator;
 

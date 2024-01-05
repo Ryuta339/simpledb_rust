@@ -161,7 +161,7 @@ impl FileMgr {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::file::page::Setter;
+	use crate::file::page::PageSetter;
 
 	#[test]
 	fn write_and_read() {

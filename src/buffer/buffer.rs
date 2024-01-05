@@ -112,7 +112,7 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::file::{block_id::BlockId, manager::FileMgr, page::Setter};
+	use crate::file::{block_id::BlockId, manager::FileMgr, page::PageSetter};
 	use crate::log::manager::LogMgr;
 	use crate::buffer::manager::BufferMgr;
 

@@ -5,7 +5,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 use crate::{
-	file::{block_id::BlockId, page::{Page, Setter}},
+	file::{block_id::BlockId, page::{Page, PageSetter}},
 	log::manager::LogMgr,
 	tx::transaction::Transaction,
 };
