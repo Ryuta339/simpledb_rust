@@ -225,7 +225,7 @@ impl RollbackRecord {
 }
 
 
-trait AbstractDataRecord<T> {
+pub trait AbstractDataRecord<T> {
 	fn new(p: Page) -> Result<Self> where Self: Sized {
 		let tpos = mem::size_of::<i32>();
 		let txnum = p.get_i32(tpos)?;
@@ -251,7 +251,7 @@ trait AbstractDataRecord<T> {
 	fn write_to_log(
 		lm: Arc<RefCell<LogMgr>>,
 		txnum: i32,
-		blk: BlockId,
+		blk: &BlockId,
 		offset: i32,
 		val: T
 	) -> Result<u64> {
@@ -600,7 +600,7 @@ mod tests {
 		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb1.log").unwrap();
 		let lm_arc = Arc::new(RefCell::new(lm));
 		let block_id = BlockId::new("testfile", 2);
-		let _ = SetI32Record::write_to_log(Arc::clone(&lm_arc), 10, block_id, 2, 0xFF);
+		let _ = SetI32Record::write_to_log(Arc::clone(&lm_arc), 10, &block_id, 2, 0xFF);
 		let rec = SetI32Record::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
 		assert_eq!(rec.val, 0xFF);
 		assert_eq!(rec.txnum, 10);
@@ -616,7 +616,7 @@ mod tests {
 		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb2.log").unwrap();
 		let lm_arc = Arc::new(RefCell::new(lm));
 		let block_id = BlockId::new("testfile", 3);
-		let _ = SetStringRecord::write_to_log(Arc::clone(&lm_arc), 30, block_id, 5, String::from("teststring"));
+		let _ = SetStringRecord::write_to_log(Arc::clone(&lm_arc), 30, &block_id, 5, String::from("teststring"));
 		let rec = SetStringRecord::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
 		assert_eq!(rec.val, "teststring");
 		assert_eq!(rec.txnum, 30);
