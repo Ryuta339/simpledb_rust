@@ -42,20 +42,18 @@ pub trait LogRecord {
 	fn undo(&self, tx: &mut Transaction) -> Result<()>;
 }
 
-impl dyn LogRecord {
-	pub fn create_log_record(bytes: Vec<u8>) -> Result<Box<Self>> {
-		let p = Page::new_from_bytes(bytes);
-		let tx_type: i32 = p.get_i32(0)?;
+pub fn create_log_record(bytes: Vec<u8>) -> Result<Box<dyn LogRecord,>> {
+	let p = Page::new_from_bytes(bytes);
+	let tx_type: i32 = p.get_i32(0)?;
 
-		match FromPrimitive::from_i32(tx_type) {
-			Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord::new(p)?)),
+	match FromPrimitive::from_i32(tx_type) {
+		Some(TxType::CHECKPOINT) => Ok(Box::new(CheckpointRecord::new(p)?)),
 			Some(TxType::START) => Ok(Box::new(StartRecord::new(p)?)),
 			Some(TxType::COMMIT) => Ok(Box::new(CommitRecord::new(p)?)),
 			Some(TxType::ROLLBACK) => Ok(Box::new(RollbackRecord::new(p)?)),
 			Some(TxType::SETI32) => Ok(Box::new(SetI32Record::new(p)?)),
 			Some(TxType::SETSTRING) => Ok(Box::new(SetStringRecord::new(p)?)),
 			None => Err(From::from(LogRecordError::UnknownRecord)),
-		}
 	}
 }
 
@@ -550,7 +548,7 @@ mod tests {
 		let tests_list = create_tests_list();
 
 		tests_list.iter().for_each(|(bytes, expected_txtype, expected_txnum)| {
-			let actual: Box<dyn LogRecord> = <dyn LogRecord>::create_log_record(bytes.to_vec()).unwrap();
+			let actual: Box<dyn LogRecord> = create_log_record(bytes.to_vec()).unwrap();
 			assert_eq!(*expected_txtype, actual.op());
 			assert_eq!(*expected_txnum, actual.tx_number());
 		});

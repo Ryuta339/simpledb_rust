@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::logrecord::{
+	create_log_record,
 	CheckpointRecord,
 	CommitRecord,
 	RollbackRecord,
@@ -16,6 +17,7 @@ use super::logrecord::{
 	SetI32Record,
 	SetStringRecord,
 	AbstractDataRecord,
+	TxType,
 };
 
 #[derive(Debug)]
@@ -109,7 +111,20 @@ impl RecoveryMgr {
 	}
 
 	fn do_rollback(&mut self) -> Result<()> {
-		panic!("TODO");
+		let iter = self.lm.borrow_mut().iterator()?;
+		// この辺map等の処理に変えたい
+		for bytes in iter {
+			let rec = create_log_record(bytes)?;
+			if rec.tx_number() == self.txnum {
+				if rec.op() == TxType::START {
+					return Ok(())
+				}
+
+				rec.undo(&mut self.tx)?;
+			}
+		}
+
+		Ok(())
 	}
 	fn do_recover(&mut self) -> Result<()> {
 		panic!("TODO");
