@@ -3,7 +3,10 @@ use core::fmt;
 use itertools::izip;
 use std::mem;
 
-use crate::types::page_bytes::ToPageBytes;
+use crate::types::page_bytes::{
+	FromPageBytes,
+	ToPageBytes,
+};
 
 #[derive(Debug)]
 enum PageError {
@@ -23,6 +26,10 @@ pub trait PageSetter<T: ToPageBytes> {
 	fn set (&mut self, offset: usize, t: T) -> Result<usize>;
 }
 
+pub trait PageGetter<T: FromPageBytes> {
+	fn get (&self, offset: usize) -> Result<T>;
+}
+
 pub struct Page {
 	bb: Vec<u8>,
 }
@@ -31,6 +38,12 @@ impl<T: ToPageBytes> PageSetter<T> for Page {
 	fn set (&mut self, offset: usize, t: T) -> Result<usize> {
 		let bytes = t.to_page_bytes();
 		self.set_page_bytes(offset, bytes)
+	}
+}
+
+impl<T: FromPageBytes> PageGetter<T> for Page {
+	fn get (&self, offset: usize) -> Result<T> {
+		T::from_page_bytes(Vec::from(&self.bb[offset..self.bb.len()]), PageError::BufferSizeExceeded.into())
 	}
 }
 
@@ -58,14 +71,7 @@ impl Page {
 	}
 
 	pub fn get_i32(&self, offset: usize) -> Result<i32> {
-		let i32_size = mem::size_of::<i32>();
-
-		if offset + i32_size - 1 < self.bb.len() {
-			let bytes = &self.bb[offset..offset + i32_size];
-			Ok(i32::from_be_bytes((*bytes).try_into()?))
-		} else {
-			Err(PageError::BufferSizeExceeded.into())
-		}
+		self.get(offset)
 	}
 
 	pub fn set_i32(&mut self, offset: usize, n: i32) -> Result<usize> {
