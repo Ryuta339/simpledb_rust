@@ -37,3 +37,16 @@ impl FromPageBytes for i32 {
 		}
 	}
 }
+impl FromPageBytes for &[u8] {
+	fn from_page_bytes(b: &[u8], err: Error) -> Result<Self> {
+		let new_offset = mem::size_of::<i32>();
+		let len = i32::from_page_bytes(&b, err)? as usize;
+
+		if new_offset + len - 1 < b.len() {
+			//Ok(&Vec::from(&b[new_offset..new_offset + len]))
+			panic!("How to do?");
+		} else {
+			Err(err)
+		}
+	}
+}
