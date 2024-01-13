@@ -23,10 +23,10 @@ impl ToPageBytes for String {
 }
 
 pub trait FromPageBytes: Sized {
-	fn from_page_bytes(b: Vec<u8>, err: Error) -> Result<Self>;
+	fn from_page_bytes(b: &[u8], err: Error) -> Result<Self>;
 }
 impl FromPageBytes for i32 {
-	fn from_page_bytes(b: Vec<u8>, err: Error) -> Result<Self> {
+	fn from_page_bytes(b: &[u8], err: Error) -> Result<Self> {
 		let i32_size = mem::size_of::<i32>();
 
 		if i32_size - 1 < b.len() {

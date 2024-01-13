@@ -43,7 +43,7 @@ impl<T: ToPageBytes> PageSetter<T> for Page {
 
 impl<T: FromPageBytes> PageGetter<T> for Page {
 	fn get (&self, offset: usize) -> Result<T> {
-		T::from_page_bytes(Vec::from(&self.bb[offset..self.bb.len()]), PageError::BufferSizeExceeded.into())
+		T::from_page_bytes(&self.bb[offset..self.bb.len()], PageError::BufferSizeExceeded.into())
 	}
 }
 
