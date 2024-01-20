@@ -58,6 +58,13 @@ pub struct LockTable {
 }
 
 impl LockTable {
+	pub fn new() -> Self {
+		Self {
+			locks: HashMap::new(),
+			l: Arc::new(Mutex::default()),
+		}
+	}
+
 	pub fn s_lock(&mut self, blk: &BlockId) -> Result<()> {
 		lock!(self, {
 			sleep!(self.has_x_lock(&blk));
