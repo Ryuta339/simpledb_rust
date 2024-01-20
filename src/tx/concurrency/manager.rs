@@ -1,6 +1,6 @@
 use std::{
 	collections::HashMap,
-	sync::{Arc, LockResult, Mutex, Once, ONCE_INIT}
+	sync::{Arc, LockResult, Mutex, Once}
 };
 
 use super::locktable::LockTable;
@@ -16,7 +16,7 @@ pub struct ConcurrencyMgr {
 impl ConcurrencyMgr {
 	pub fn new() -> Self {
 		static mut SINGLETON: Option<Arc<Mutex<LockTable>>> = None;
-		static ONCE: Once = ONCE_INIT;
+		static ONCE: Once = Once::new();
 
 		unsafe {
 			ONCE.call_once(|| {
@@ -29,5 +29,18 @@ impl ConcurrencyMgr {
 				locks: HashMap::new(),
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_locktable_is_singleton() {
+		// マルチスレッドでシングルトンであるかどうかが確認できていない
+		let cm1 = ConcurrencyMgr::new();
+		let cm2 = ConcurrencyMgr::new();
+		assert!(Arc::ptr_eq(&cm1.locktbl, &cm2.locktbl));
 	}
 }
