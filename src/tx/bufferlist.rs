@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::{
 	cell::RefCell,
 	collections::HashMap,
+	ops::Deref,
 	sync::{Arc, Mutex},
 };
 
@@ -33,6 +34,16 @@ impl BufferList {
 		self.buffers.insert(blk.clone(), buff);
 		self.pins.push(blk.clone());
 
+		Ok(())
+	}
+	fn unpin(&mut self, blk: &BlockId) -> Result<()> {
+		if let Some(buff) = self.buffers.get(blk) {
+			let _ = self.bm.lock().unwrap().unpin(Arc::clone(buff));
+			self.pins.retain(|x| x == blk);
+			if self.pins.contains(blk) {
+				self.buffers.remove(blk);
+			}
+		}
 		Ok(())
 	}
 }
