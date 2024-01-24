@@ -1,13 +1,11 @@
 use anyhow::Result;
 use std::{
 	collections::HashMap,
-	net::ToSocketAddrs,
-	sync::{Arc, LockResult, Mutex, Once}
+	sync::{Arc, Mutex, Once}
 };
 
 use super::locktable::LockTable;
 use crate::file::block_id::BlockId;
-use crate::tx::concurrency::locktable;
 
 pub struct ConcurrencyMgr {
 	// static member (shared by all ConcurrentMgr)
