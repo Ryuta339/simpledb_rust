@@ -2,7 +2,6 @@ use anyhow::Result;
 use std::{
 	cell::RefCell,
 	collections::HashMap,
-	ops::Deref,
 	sync::{Arc, Mutex},
 };
 
