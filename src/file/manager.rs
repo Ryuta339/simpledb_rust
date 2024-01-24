@@ -32,8 +32,7 @@ pub struct FileMgr {
 	db_directory: String,
 	blocksize: u64,
 	is_new: bool,
-	open_files: HashMap<String, File>,
-	l: Arc<Mutex<()>>,
+	open_files: HashMap<String, Arc<Mutex<File>>>,
 }
 
 impl FileMgr {
@@ -62,62 +61,56 @@ impl FileMgr {
 			blocksize,
 			is_new,
 			open_files: HashMap::new(),
-			l:Arc::new(Mutex::default()),
 		})
 	}
 
 	pub fn read(&mut self, blk: &BlockId, p: &mut Page) -> Result<()> {
-		if self.l.lock().is_ok() {
-			let offset = blk.number() * self.blocksize;
-			if let Some(f) = self.get_file(blk.file_name().as_str()) {
-				f.seek(SeekFrom::Start(offset))?;
+		let offset = blk.number() * self.blocksize;
+		if let Some(file) = self.get_file(blk.file_name().as_str()) {
+			let mut f = file.lock().unwrap();
+			f.seek(SeekFrom::Start(offset))?;
 
-				let read_len = f.read(p.contents())?;
-				let p_len = p.contents().len();
-				if read_len < p_len {
-					let tmp = vec![0; p_len - read_len];
-					f.write_all(&tmp)?;
-
-					for i in read_len..p_len {
-						p.contents()[i] = 0;
-					}
+			let read_len = f.read(p.contents())?;
+			let p_len = p.contents().len();
+			if read_len < p_len {
+				let tmp = vec![0; p_len - read_len];
+				f.write_all(&tmp)?;
+				for i in read_len..p_len {
+					p.contents()[i] = 0;
 				}
-
-				return Ok(());
 			}
+
+			return Ok(());
 		}
 
 		Err(From::from(FileMgrError::FileAccessFailed(blk.file_name())))
 	}
 
 	pub fn append(&mut self, filename: &str) -> Result<BlockId> {
-		if self.l.lock().is_ok() {
-			let new_blknum = self.length(filename)?;
-			let blk = BlockId::new(filename, new_blknum);
+		let new_blknum = self.length(filename)?;
+		let blk = BlockId::new(filename, new_blknum);
+		let b: Vec<u8> = vec![0u8; self.blocksize as usize];
+		let offset = blk.number() * self.blocksize;
 
-			let b: Vec<u8> = vec![0u8; self.blocksize as usize];
+		if let Some(file) = self.get_file(blk.file_name().as_str()) {
+			let mut f = file.lock().unwrap();
+			f.seek(SeekFrom::Start(offset))?;
+			f.write_all(&b)?;
 
-			let offset = blk.number() * self.blocksize;
-			if let Some(f) = self.get_file(blk.file_name().as_str()) {
-				f.seek(SeekFrom::Start(offset))?;
-				f.write_all(&b)?;
-
-				return Ok(blk);
-			}
+			return Ok(blk);
 		}
 
 		Err(From::from(FileMgrError::FileAccessFailed(filename.to_string())))
 	}
 
 	pub fn write(&mut self, blk: &BlockId, p: &mut Page) -> Result<()> {
-		if self.l.lock().is_ok() {
-			let offset = blk.number() * self.blocksize;
-			if let Some(f) = self.get_file(blk.file_name().as_str()) {
-				f.seek(SeekFrom::Start(offset))?;
-				f.write_all(p.contents())?;
+		let offset = blk.number() * self.blocksize;
+		if let Some(file) = self.get_file(blk.file_name().as_str()) {
+			let mut f = file.lock().unwrap();
+			f.seek(SeekFrom::Start(offset))?;
+			f.write_all(p.contents())?;
 
-				return Ok(());
-			}
+			return Ok(());
 		}
 
 		Err(From::from(FileMgrError::FileAccessFailed(blk.file_name())))
@@ -132,17 +125,21 @@ impl FileMgr {
 		Ok((meta.len() + self.blocksize - 1) / self.blocksize)
 	}
 
-	pub fn get_file(&mut self, filename: &str) -> Option<&mut File> {
+	pub fn get_file(&mut self, filename: &str) -> Option<&mut Arc<Mutex<File>>> {
 		let path = Path::new(&self.db_directory).join(&filename);
 
-		let f = self.open_files.entry(filename.to_string()).or_insert(
+		let f = self
+			.open_files.
+			entry(filename.to_string())
+			.or_insert(
+				Arc::new(Mutex::new(
 			OpenOptions::new()
 				.read(true)
 				.write(true)
 				.create(true)
 				.open(&path)
 				.unwrap(),
-		);
+		)));
 
 		Some(f)
 	}
