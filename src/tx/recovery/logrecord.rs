@@ -1,5 +1,9 @@
 use core::fmt;
-use std::{cell::RefCell, mem, sync::Arc};
+use std::{
+	cell::RefCell,
+	mem,
+	sync::{Arc, Mutex},
+};
 use anyhow::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -594,7 +598,7 @@ mod tests {
 	#[test]
 	fn test_set_i32_record_write_to_log() -> Result<()> {
 		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
-		let fm_arc = Arc::new(RefCell::new(fm));
+		let fm_arc = Arc::new(Mutex::new(fm));
 		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb1.log").unwrap();
 		let lm_arc = Arc::new(RefCell::new(lm));
 		let block_id = BlockId::new("testfile", 2);
@@ -610,7 +614,7 @@ mod tests {
 	#[test]
 	fn test_set_string_record_write_to_log() -> Result<()> {
 		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
-		let fm_arc = Arc::new(RefCell::new(fm));
+		let fm_arc = Arc::new(Mutex::new(fm));
 		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb2.log").unwrap();
 		let lm_arc = Arc::new(RefCell::new(lm));
 		let block_id = BlockId::new("testfile", 3);

@@ -1,6 +1,5 @@
 use anyhow::Result;
 use core::fmt;
-use std::cell::RefCell;
 use std::mem;
 use std::sync::{Arc, Mutex};
 
@@ -25,28 +24,29 @@ impl fmt::Display for LogMgrError {
 }
 
 pub struct LogMgr {
-	fm: Arc<RefCell<FileMgr>>,
+	fm: Arc<Mutex<FileMgr>>,
 	logfile: String,
 	logpage: Page,
 	current_blk: BlockId,
 	// latest log sequence number
 	latest_lsn: u64,
 	last_saved_lsn: u64,
-	l: Arc<Mutex<()>>,
 }
 
 impl LogMgr {
-	pub fn new(fm: Arc<RefCell<FileMgr>>, logfile: &str) -> Result<Self> {
-		let mut logpage = Page::new_from_size(fm.borrow().blocksize() as usize);
-		let logsize = fm.borrow_mut().length(logfile)?;
+	pub fn new(fm: Arc<Mutex<FileMgr>>, logfile: &str) -> Result<Self> {
+		let mut filemgr = fm.lock().unwrap();
+		let mut logpage = Page::new_from_size(filemgr.blocksize() as usize);
+		let logsize = filemgr.length(logfile)?;
 
 		let logmgr;
 
 		if logsize == 0 {
-			let blk = fm.borrow_mut().append(logfile)?;
-			logpage.set(0, fm.borrow().blocksize() as i32)?;
-			fm.borrow_mut().write(&blk, &mut logpage)?;
+			let blk = filemgr.append(logfile)?;
+			logpage.set(0, filemgr.blocksize() as i32)?;
+			filemgr.write(&blk, &mut logpage)?;
 
+			drop(filemgr);
 			logmgr = Self {
 				fm,
 				logfile: logfile.to_string(),
@@ -54,12 +54,12 @@ impl LogMgr {
 				current_blk: blk,
 				latest_lsn: 0,
 				last_saved_lsn: 0,
-				l: Arc::new(Mutex::default()),
 			};
 		} else {
 			let newblk = BlockId::new(logfile, logsize - 1);
-			fm.borrow_mut().read(&newblk, &mut logpage)?;
+			filemgr.read(&newblk, &mut logpage)?;
 
+			drop(filemgr);
 			logmgr = Self {
 				fm,
 				logfile: logfile.to_string(),
@@ -67,7 +67,6 @@ impl LogMgr {
 				current_blk: newblk,
 				latest_lsn: 0,
 				last_saved_lsn: 0,
-				l: Arc::new(Mutex::default()),
 			};
 		}
 
@@ -90,45 +89,39 @@ impl LogMgr {
 	}
 
 	pub fn append(&mut self, logrec: &mut Vec<u8>) -> Result<u64> {
-		if self.l.lock().is_ok() {
-			let mut boundary = self.logpage.get_i32(0)?;
-			let recsize = logrec.len() as i32;
-			let int32_size = mem::size_of::<i32>() as i32;
-			let bytes_needed = recsize + int32_size;
+		let mut boundary = self.logpage.get_i32(0)?;
+		let recsize = logrec.len() as i32;
+		let int32_size = mem::size_of::<i32>() as i32;
+		let bytes_needed = recsize + int32_size;
 
-			if boundary - bytes_needed < int32_size {
-				self.flush_to_fm()?;
-
-				self.current_blk = self.append_newblk()?;
-				boundary = self.logpage.get_i32(0)?;
-			}
-
-			let recpos = (boundary - bytes_needed) as usize;
-			// &Vec<u8>を渡しても&[u8]と解釈されないため，as_slice()を用いている
-			self.logpage.set(recpos, logrec.as_slice())?;
-			self.logpage.set(0, recpos as i32)?;
-			self.latest_lsn += 1;
-
-			return Ok(self.last_saved_lsn);
+		if boundary - bytes_needed < int32_size {
+			self.flush_to_fm()?;
+			self.current_blk = self.append_newblk()?;
+			boundary = self.logpage.get_i32(0)?;
 		}
 
-		Err(From::from(LogMgrError::LogPageAccessFailed))
+		let recpos = (boundary - bytes_needed) as usize;
+		self.logpage.set_bytes(recpos, logrec)?;
+		self.logpage.set_i32(0, recpos as i32)?;
+		self.latest_lsn += 1;
+
+		Ok(self.last_saved_lsn)
 	}
 
 	fn flush_to_fm(&mut self) -> Result<()> {
-		self.fm
-			.borrow_mut()
-			.write(&self.current_blk, &mut self.logpage)?;
-		self.last_saved_lsn = self.latest_lsn;
+		let mut filemgr = self.fm.lock().unwrap();
+
+		filemgr.write(&self.current_blk, &mut self.logpage)?;
 
 		Ok(())
 	}
 
 	fn append_newblk(&mut self) -> Result<BlockId> {
-		let blk = self.fm.borrow_mut().append(self.logfile.as_str())?;
-		self.logpage
-			.set(0, self.fm.borrow().blocksize() as i32)?;
-		self.fm.borrow_mut().write(&blk, &mut self.logpage)?;
+		let mut filemgr = self.fm.lock().unwrap();
+
+		let blk = filemgr.append(self.logfile.as_str())?;
+		self.logpage.set_i32(0, filemgr. blocksize() as i32)?;
+		filemgr.write(&blk, &mut self.logpage)?;
 
 		Ok(blk)
 	}
@@ -152,7 +145,7 @@ mod tests {
 		}
 		let fm = FileMgr::new("logtest", 400).unwrap();
 		let mut lm = LogMgr::new(
-			Arc::new(RefCell::new(fm)),
+			Arc::new(Mutex::new(fm)),
 			LOG_FILE
 			).unwrap();
 		let _ = create_records(&mut lm, 1, 35);

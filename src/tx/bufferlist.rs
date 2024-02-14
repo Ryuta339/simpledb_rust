@@ -1,6 +1,5 @@
 use anyhow::Result;
 use std::{
-	cell::RefCell,
 	collections::HashMap,
 	sync::{Arc, Mutex},
 };
@@ -12,7 +11,7 @@ use crate::{
 };
 
 pub struct BufferList {
-	buffers: HashMap<BlockId, Arc<RefCell<Buffer>>>,
+	buffers: HashMap<BlockId, Arc<Mutex<Buffer>>>,
 	pins: Vec<BlockId>,
 	bm: Arc<Mutex<BufferMgr>>,
 }
@@ -25,7 +24,7 @@ impl BufferList {
 			bm,
 		}
 	}
-	fn get_buffer(&mut self, blk: &BlockId) -> Option<&mut Arc<RefCell<Buffer>>> {
+	fn get_buffer(&mut self, blk: &BlockId) -> Option<&mut Arc<Mutex<Buffer>>> {
 		self.buffers.get_mut(blk)
 	}
 	fn pin(&mut self, blk: &BlockId) -> Result<()> {

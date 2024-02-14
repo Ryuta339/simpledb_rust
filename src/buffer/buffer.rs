@@ -1,9 +1,6 @@
 use anyhow::Result;
 use core::fmt;
-use std::error::Error;
-
-use std::cell::RefCell;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::{
 	file::{block_id::BlockId, manager::FileMgr, page::Page},
@@ -15,7 +12,7 @@ enum BufferError {
 	BlockNotFound,
 }
 
-impl Error for BufferError {}
+impl std::error::Error for BufferError {}
 impl fmt::Display for BufferError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
@@ -27,8 +24,8 @@ impl fmt::Display for BufferError {
 }
 
 pub struct Buffer {
-	fm: Arc<RefCell<FileMgr>>,
-	lm: Arc<RefCell<LogMgr>>,
+	fm: Arc<Mutex<FileMgr>>,
+	lm: Arc<Mutex<LogMgr>>,
 	contents: Page,
 	blk: Option<BlockId>,
 	pins: u64,
@@ -37,8 +34,8 @@ pub struct Buffer {
 }
 
 impl Buffer {
-	pub fn new(fm: Arc<RefCell<FileMgr>>, lm: Arc<RefCell<LogMgr>>) -> Self {
-		let blksize = fm.borrow().blocksize() as usize;
+	pub fn new(fm: Arc<Mutex<FileMgr>>, lm: Arc<Mutex<LogMgr>>) -> Self {
+		let blksize = fm.lock().unwrap().blocksize() as usize;
 		let contents = Page::new_from_size(blksize);
 
 		Self {
@@ -77,7 +74,7 @@ impl Buffer {
 
 	pub fn assign_to_block(&mut self, b: BlockId) -> Result<()> {
 		self.flush()?;
-		self.fm.borrow_mut().read(&b, &mut self.contents)?;
+		self.fm.lock().unwrap().read(&b, &mut self.contents)?;
 		self.blk = Some(b);
 		self.pins = 0;
 
@@ -86,11 +83,11 @@ impl Buffer {
 
 	pub fn flush(&mut self) -> Result<()> {
 		if self.txnum >= 0 {
-			self.lm.borrow_mut().flush(self.lsn as u64)?;
+			self.lm.lock().unwrap().flush(self.lsn as u64)?;
 
 			match self.blk.as_ref() {
 				Some(blk) => {
-					self.fm.borrow_mut().write(blk, &mut self.contents)?;
+					self.fm.lock().unwrap().write(blk, &mut self.contents)?;
 					self.txnum = -1;
 				}
 				None => return Err(From::from(BufferError::BlockNotFound)),
@@ -121,15 +118,15 @@ mod tests {
 	#[test]
 	fn buffer_test() {
 		let fm = FileMgr::new("buffertest", 400).unwrap();
-		let fm_arc = Arc::new(RefCell::new(fm));
+		let fm_arc = Arc::new(Mutex::new(fm));
 		let lm = LogMgr::new(Arc::clone(&fm_arc), LOG_FILE).unwrap();
-		let lm_arc = Arc::new(RefCell::new(lm));
+		let lm_arc = Arc::new(Mutex::new(lm));
 		let mut bm = BufferMgr::new(fm_arc, lm_arc, 3);
 
 		let buff1 = bm.pin(&BlockId::new("testfile", 1)).unwrap();
 		{
 			// In this block, buff1 is borrowed and cannot be used
-			let mut b1 = buff1.borrow_mut();
+			let mut b1 = buff1.lock().unwrap();
 			let p = b1.contents();
 			let n = p.get_i32(80).unwrap();
 			let _ = p.set(80, n+1);
@@ -147,7 +144,7 @@ mod tests {
 		let buff2 = bm.pin(&BlockId::new("testfile", 1)).unwrap();
 		{
 			// In this block, buff2 is borrowed and cannot be used
-			let mut b2 = buff2.borrow_mut();
+			let mut b2 = buff2.lock().unwrap();
 			let p = b2.contents();
 			let _ = p.set(80, 9999);
 			b2.set_modified(1, 0);
