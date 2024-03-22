@@ -2,7 +2,7 @@ use anyhow::Result;
 use core::fmt;
 use std::{
 	collections::HashMap,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex, MutexGuard},
 	thread,
 	time::{Duration, SystemTime},
 };
@@ -41,70 +41,83 @@ macro_rules! lock {
 	}
 }
 macro_rules! sleep {
-	($cond:expr) => {
+	($self:ident, $processing:block) => {
 		let timestamp = SystemTime::now();
-		while $cond {
-			if waiting_too_long(timestamp) {
-				return Err(From::from(LockTableError::LockAbort));
-			}
+		while !waiting_too_long(timestamp) {
+			let mut locks = $self.locks.lock().unwrap();
+			$processing
+			drop(locks);
 			thread::sleep(Duration::new(1, 0));
 		}
+		return Err(From::from(LockTableError::LockAbort));
 	}
 }
 
 pub struct LockTable {
-	locks: HashMap<BlockId, i32>,
-	l: Arc<Mutex<()>>,
+	locks: Arc<Mutex<HashMap<BlockId, i32>>>,
 }
 
 impl LockTable {
 	pub fn new() -> Self {
 		Self {
-			locks: HashMap::new(),
-			l: Arc::new(Mutex::default()),
+			locks: Arc::new(Mutex::new(HashMap::new())),
 		}
 	}
 
 	pub fn s_lock(&mut self, blk: &BlockId) -> Result<()> {
-		lock!(self, {
-			sleep!(self.has_x_lock(&blk));
-			let val = self.get_lock_val(&blk);
-			*self.locks.entry(blk.clone()).or_insert(val.try_into().unwrap()) = val;
+		let timestamp = SystemTime::now();
 
-			return Ok(());
-		}, "s_lock")
+		while !waiting_too_long(timestamp) {
+			let mut locks = self.locks.lock().unwrap();
+			if !has_x_lock(&locks, &blk) {
+				*locks.entry(blk.clone()).or_insert(0) += 1;
+				return Ok(());
+			}
+			drop(locks); // release
+			thread::sleep(Duration::new(1, 0));
+		}
+
+		Err(From::from(LockTableError::LockAbort))
 	}
 	pub fn x_lock(&mut self, blk: &BlockId) -> Result<()> {
-		lock!(self, {
-			sleep!(self.has_other_s_locks(&blk));
-			self.locks.entry(blk.clone()).or_insert(-1);
+		let timestamp = SystemTime::now();
 
-			return Ok(())
-		}, "x_lock")
+		while !waiting_too_long(timestamp) {
+			let mut locks = self.locks.lock().unwrap();
+			if !has_other_s_locks(&locks, &blk) {
+				*locks.entry(blk.clone()).or_insert(-1) = -1;
+				return Ok(());
+			}
+			drop(locks); // release
+			thread::sleep(Duration::new(1, 0));
+		}
+
+		Err(From::from(LockTableError::LockAbort))
 	}
 	pub fn unlock(&mut self, blk: &BlockId) -> Result<()> {
-		lock!(self, {
-			let val = self.get_lock_val(&blk);
-			if val > 1 {
-				self.locks.entry(blk.clone()).or_insert(val - 1);
-			} else {
-				self.locks.remove(&blk);
-			}
+		let mut locks = self.locks.lock().unwrap();
 
-			return Ok(())
-		}, "unlock")
-	}
-	fn has_x_lock(&self, blk: &BlockId) -> bool {
-		self.get_lock_val(&blk) < 0 
-	}
-	fn has_other_s_locks(&self, blk: &BlockId) -> bool {
-		self.get_lock_val(&blk) > 1
-	}
-	fn get_lock_val(&self, blk: &BlockId) -> i32 {
-		match self.locks.get(&blk) {
-			Some(&ival) => ival,
-			None => 0,
+		let val = get_lock_val(&locks, &blk);
+		if val > 1 {
+			locks.entry(blk.clone()).or_insert(val - 1);
+		} else {
+			locks.remove(&blk);
 		}
+
+		return Ok(());
+	}
+}
+
+fn has_x_lock(locks: &MutexGuard<HashMap<BlockId, i32>>, blk: &BlockId) -> bool {
+	get_lock_val(locks, blk) < 0 
+}
+fn has_other_s_locks(locks: &MutexGuard<HashMap<BlockId, i32>>, blk: &BlockId) -> bool {
+	get_lock_val(locks, blk) > 1
+}
+fn get_lock_val(locks: &MutexGuard<HashMap<BlockId, i32>>, blk: &BlockId) -> i32 {
+	match locks.get(&blk) {
+		Some(&ival) => ival,
+		None => 0,
 	}
 }
 
