@@ -38,6 +38,17 @@ impl fmt::Display for RecoveryMgrError {
 	}
 }
 
+macro_rules! lock {
+	($self:ident, $wtl:expr) => ({
+		let mut lm = $self.lm.lock().unwrap();
+		let mut bm = $self.bm.lock().unwrap();
+
+		bm.flush_all($self.txnum)?;
+		let lsn = $wtl;
+		lm.flush(lsn)
+	})
+}
+
 pub struct RecoveryMgr {
 	lm: Arc<Mutex<LogMgr>>,
 	bm: Arc<Mutex<BufferMgr>>,
@@ -58,33 +69,17 @@ impl RecoveryMgr {
 	}
 
 	pub fn commit(&mut self) -> Result<()> {
-		let mut lm = self.lm.lock().unwrap();
-		let mut bm = self.bm.lock().unwrap();
-
-		bm.flush_all(self.txnum)?;
-		let lsn = CommitRecord::write_to_log(Arc::clone(&self.lm), self.txnum)?;
-		lm.flush(lsn)
+		lock!(self, CommitRecord::write_to_log(Arc::clone(&self.lm), self.txnum)?)
 	}
 
 	pub fn rollback(&mut self) -> Result<()> {
 		self.do_rollback()?;
-		let mut lm = self.lm.lock().unwrap();
-		let mut bm = self.bm.lock().unwrap();
-		
-		bm.flush_all(self.txnum)?;
-		let lsn = RollbackRecord::write_to_log(Arc::clone(&self.lm), self.txnum)?;
-		lm.flush(lsn)
+		lock!(self, RollbackRecord::write_to_log(Arc::clone(&self.lm), self.txnum)?)
 	}
 
 	pub fn recover(&mut self) -> Result<()> {
 		self.do_recover()?;
-
-		let mut lm = self.lm.lock().unwrap();
-		let mut bm = self.bm.lock().unwrap();
-
-		bm.flush_all(self.txnum)?;
-		let lsn = CheckpointRecord::write_to_log(Arc::clone(&self.lm))?;
-		lm.flush(lsn)
+		lock!(self, CheckpointRecord::write_to_log(Arc::clone(&self.lm))?)
 	}
 
 	pub fn set_i32(&mut self, buff: &mut Buffer, offset: i32, _new_val: i32) -> Result<u64> {
