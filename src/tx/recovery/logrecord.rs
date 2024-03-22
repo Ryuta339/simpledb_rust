@@ -1,6 +1,5 @@
 use core::fmt;
 use std::{
-	cell::RefCell,
 	mem,
 	sync::{Arc, Mutex},
 };
@@ -87,13 +86,13 @@ impl CheckpointRecord {
 		Ok(Self {})
 	}
 
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>) -> Result<u64> {
+	pub fn write_to_log(lm: Arc<Mutex<LogMgr>>) -> Result<u64> {
 		let reclen = mem::size_of::<i32>();
 
 		let mut p = Page::new_from_size(reclen);
 		p.set(0, TxType::CHECKPOINT as i32)?;
 
-		lm.borrow_mut().append(p.contents())
+		lm.lock().unwrap().append(p.contents())
 	}
 }
 
@@ -128,7 +127,7 @@ impl StartRecord {
 		Ok(Self { txnum })
 	}
 
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
+	pub fn write_to_log(lm: Arc<Mutex<LogMgr>>, txnum: i32) -> Result<u64> {
 		let tpos = mem::size_of::<i32>();
 		let reclen = tpos + mem::size_of::<i32>();
 
@@ -136,7 +135,7 @@ impl StartRecord {
 		p.set(0, TxType::START as i32)?;
 		p.set(tpos, txnum)?;
 
-		lm.borrow_mut().append(p.contents())
+		lm.lock().unwrap().append(p.contents())
 	}
 }
 
@@ -171,7 +170,7 @@ impl CommitRecord {
 		Ok(Self { txnum })
 	}
 
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
+	pub fn write_to_log(lm: Arc<Mutex<LogMgr>>, txnum: i32) -> Result<u64> {
 		let tpos = mem::size_of::<i32>();
 		let reclen = tpos + mem::size_of::<i32>();
 
@@ -179,7 +178,7 @@ impl CommitRecord {
 		p.set(0, TxType::COMMIT as i32)?;
 		p.set(tpos, txnum)?;
 
-		lm.borrow_mut().append(p.contents())
+		lm.lock().unwrap().append(p.contents())
 	}
 }
 
@@ -214,7 +213,7 @@ impl RollbackRecord {
 		Ok(Self { txnum })
 	}
 
-	pub fn write_to_log(lm: Arc<RefCell<LogMgr>>, txnum: i32) -> Result<u64> {
+	pub fn write_to_log(lm: Arc<Mutex<LogMgr>>, txnum: i32) -> Result<u64> {
 		let tpos = mem::size_of::<i32>();
 		let reclen = tpos + mem::size_of::<i32>();
 
@@ -222,7 +221,7 @@ impl RollbackRecord {
 		p.set(0, TxType::ROLLBACK as i32)?;
 		p.set(tpos, txnum)?;
 
-		lm.borrow_mut().append(p.contents())
+		lm.lock().unwrap().append(p.contents())
 	}
 }
 
@@ -251,7 +250,7 @@ pub trait AbstractDataRecord<T> {
 		blk: BlockId) -> Result<Self> where Self: Sized;
 
 	fn write_to_log(
-		lm: Arc<RefCell<LogMgr>>,
+		lm: Arc<Mutex<LogMgr>>,
 		txnum: i32,
 		blk: &BlockId,
 		offset: i32,
@@ -272,7 +271,7 @@ pub trait AbstractDataRecord<T> {
 		p.set(opos, offset)?;
 		Self::set_value(&mut p, vpos, val)?;
 		
-		lm.borrow_mut().append(p.contents())
+		lm.lock().unwrap().append(p.contents())
 	}
 
 	fn get_data_size(val: &T) -> usize;
@@ -600,10 +599,10 @@ mod tests {
 		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
 		let fm_arc = Arc::new(Mutex::new(fm));
 		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb1.log").unwrap();
-		let lm_arc = Arc::new(RefCell::new(lm));
+		let lm_arc = Arc::new(Mutex::new(lm));
 		let block_id = BlockId::new("testfile", 2);
 		let _ = SetI32Record::write_to_log(Arc::clone(&lm_arc), 10, &block_id, 2, 0xFF);
-		let rec = SetI32Record::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
+		let rec = SetI32Record::new(Page::new_from_bytes(lm_arc.lock().unwrap().iterator()?.next().unwrap())).unwrap();
 		assert_eq!(rec.val, 0xFF);
 		assert_eq!(rec.txnum, 10);
 		assert_eq!(rec.offset, 2);
@@ -616,10 +615,10 @@ mod tests {
 		let fm = FileMgr::new("txtest/logrecordtest", 400).unwrap();
 		let fm_arc = Arc::new(Mutex::new(fm));
 		let lm = LogMgr::new(Arc::clone(&fm_arc), "simpledb2.log").unwrap();
-		let lm_arc = Arc::new(RefCell::new(lm));
+		let lm_arc = Arc::new(Mutex::new(lm));
 		let block_id = BlockId::new("testfile", 3);
 		let _ = SetStringRecord::write_to_log(Arc::clone(&lm_arc), 30, &block_id, 5, String::from("teststring"));
-		let rec = SetStringRecord::new(Page::new_from_bytes(lm_arc.borrow_mut().iterator()?.next().unwrap())).unwrap();
+		let rec = SetStringRecord::new(Page::new_from_bytes(lm_arc.lock().unwrap().iterator()?.next().unwrap())).unwrap();
 		assert_eq!(rec.val, "teststring");
 		assert_eq!(rec.txnum, 30);
 		assert_eq!(rec.offset, 5);
