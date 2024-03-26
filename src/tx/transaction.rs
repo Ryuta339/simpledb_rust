@@ -16,13 +16,17 @@ use super::{
 	recovery::manager::RecoveryMgr,
 };
 
+static END_OF_FILE: i64 = -1;
+
 // 参考元のだとMutexにしてないが，必要だと思うので追加
 pub struct Transaction {
 	next_tx_num: Arc<Mutex<u64>>,
 
+	concur_mgr: ConcurrencyMgr,
 	fm: Arc<Mutex<FileMgr>>,
 	lm: Arc<Mutex<LogMgr>>,
 	bm: Arc<Mutex<BufferMgr>>,
+	mybuffers: BufferList,
 }
 
 impl Transaction {
@@ -41,9 +45,11 @@ impl Transaction {
 			});
 			Self {
 				next_tx_num: SINGLETON.clone().unwrap(),
+				concur_mgr: ConcurrencyMgr::new(),
 				fm,
 				lm,
-				bm,
+				bm: bm.clone(),
+				mybuffers: BufferList::new(bm),
 			}
 		}
 	}
@@ -112,11 +118,11 @@ impl Transaction {
 		panic!("TODO")
 	}
 
-	fn next_tx_number(&mut self) -> Result<u64> {
+	fn next_tx_number(&mut self) -> u64 {
 		let mut next_tx_num = self.next_tx_num.lock().unwrap();
 		*(next_tx_num) += 1;
 
-		Ok(*next_tx_num)
+		*next_tx_num
 	}
 }
 
