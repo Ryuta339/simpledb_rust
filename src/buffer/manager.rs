@@ -94,7 +94,10 @@ impl BufferMgr {
 	fn try_to_pin(&mut self, blk: &BlockId) -> Result<Arc<Mutex<Buffer>>> {
 		if let Some(buff) = self.pickup_pinnable_buffer(blk) {
 			let mut b = buff.lock().unwrap();
-
+			
+			// Maybe the following line is not necessary,
+			// because assign_to_block is called in pickup_pinnable_buffer.
+			// b.assign_to_block(blk.clone())?;
 			if !b.is_pinned() {
 				*(self.num_available.lock().unwrap()) -= 1;
 			}
@@ -188,6 +191,7 @@ mod tests {
 		buffs[4] = bm.pin(&BlockId::new("testfile", 1))?.into();
 
 		assert_eq!(bm.available()?, 0);
+
 
 		println!("Abailable buffers: {}", bm.available()?);
 		println!("Attempting to pin block 3...");

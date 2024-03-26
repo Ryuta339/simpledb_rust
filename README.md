@@ -12,6 +12,8 @@
     p.set_i32(0, TxType::COMMIT as i32)?;
 ```
 
+- Fix in the [commit 95cefd4](https://github.com/cutsea110/simpledb/commit/99f7284e5053d437a0b3d7dc3890fe61a517e429) seems not to be necessary.
+
 
 ## Record Bytes
 
