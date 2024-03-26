@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 
 use crate::{
 	buffer::manager::BufferMgr,
@@ -7,8 +7,19 @@ use crate::{
 	log::manager::LogMgr,
 };
 
+use super::{
+	bufferlist::BufferList,
+	concurrency::{
+		locktable::LockTable,
+		manager::ConcurrencyMgr,
+	},
+	recovery::manager::RecoveryMgr,
+};
+
 // 参考元のだとMutexにしてないが，必要だと思うので追加
 pub struct Transaction {
+	next_tx_num: Arc<Mutex<u64>>,
+
 	fm: Arc<Mutex<FileMgr>>,
 	lm: Arc<Mutex<LogMgr>>,
 	bm: Arc<Mutex<BufferMgr>>,
@@ -20,7 +31,21 @@ impl Transaction {
 		lm: Arc<Mutex<LogMgr>>,
 		bm: Arc<Mutex<BufferMgr>>,
 	) -> Self {
-		Self { fm, lm, bm }
+		static mut SINGLETON: Option<Arc<Mutex<u64>>> = None;
+		static ONCE: Once = Once::new();
+
+		unsafe {
+			ONCE.call_once(|| {
+				let singleton = Arc::new(Mutex::new(1));
+				SINGLETON = Some(singleton);
+			});
+			Self {
+				next_tx_num: SINGLETON.clone().unwrap(),
+				fm,
+				lm,
+				bm,
+			}
+		}
 	}
 
 	pub fn commit(&mut self) -> Result<()> {
@@ -87,7 +112,32 @@ impl Transaction {
 		panic!("TODO")
 	}
 
-	fn next_tx_number(&mut self) -> Result<i32> {
-		panic!("TODO")
+	fn next_tx_number(&mut self) -> Result<u64> {
+		let mut next_tx_num = self.next_tx_num.lock().unwrap();
+		*(next_tx_num) += 1;
+
+		Ok(*next_tx_num)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use crate::{
+		file::manager::FileMgr,
+		buffer::manager::BufferMgr,
+		log::manager::LogMgr,
+	};
+
+	#[test]
+	fn test_next_tx_number_is_singleton() {
+		let fm = Arc::new(Mutex::new(FileMgr::new("txtest/transactiontest", 200).unwrap()));
+		let lm = Arc::new(Mutex::new(LogMgr::new(fm.clone(), "testfile").unwrap()));
+		let bm = Arc::new(Mutex::new(BufferMgr::new(fm.clone(), lm.clone(), 10)));
+		// マルチスレッドでシングルトンであるかどうかが確認できていない
+		let tx1 = Transaction::new(fm.clone(), lm.clone(), bm.clone());
+		let tx2 = Transaction::new(fm.clone(), lm.clone(), bm.clone());
+		assert!(Arc::ptr_eq(&tx1.next_tx_num, &tx2.next_tx_num));
 	}
 }
