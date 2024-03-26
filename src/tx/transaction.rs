@@ -17,15 +17,17 @@ use super::{
 };
 
 static END_OF_FILE: i64 = -1;
+// next_tx_num をTransactionのメンバ変数にしない
+static mut NEXT_TX_NUM: Option<Arc<Mutex<i32>>> = None;
+static ONCE: Once = Once::new();
 
 // 参考元のだとMutexにしてないが，必要だと思うので追加
 pub struct Transaction {
-	next_tx_num: Arc<Mutex<u64>>,
-
 	concur_mgr: ConcurrencyMgr,
 	fm: Arc<Mutex<FileMgr>>,
 	lm: Arc<Mutex<LogMgr>>,
 	bm: Arc<Mutex<BufferMgr>>,
+	txnum: i32,
 	mybuffers: BufferList,
 }
 
@@ -35,20 +37,18 @@ impl Transaction {
 		lm: Arc<Mutex<LogMgr>>,
 		bm: Arc<Mutex<BufferMgr>>,
 	) -> Self {
-		static mut SINGLETON: Option<Arc<Mutex<u64>>> = None;
-		static ONCE: Once = Once::new();
 
 		unsafe {
 			ONCE.call_once(|| {
-				let singleton = Arc::new(Mutex::new(1));
-				SINGLETON = Some(singleton);
+				let singleton = Arc::new(Mutex::new(0));
+				NEXT_TX_NUM = Some(singleton);
 			});
 			Self {
-				next_tx_num: SINGLETON.clone().unwrap(),
 				concur_mgr: ConcurrencyMgr::new(),
 				fm,
 				lm,
 				bm: bm.clone(),
+				txnum: Self::next_tx_number(),
 				mybuffers: BufferList::new(bm),
 			}
 		}
@@ -118,11 +118,15 @@ impl Transaction {
 		panic!("TODO")
 	}
 
-	fn next_tx_number(&mut self) -> u64 {
-		let mut next_tx_num = self.next_tx_num.lock().unwrap();
-		*(next_tx_num) += 1;
+	fn next_tx_number() -> i32 {
+		// next_tx_num をTransactionのメンバ変数にしないため，引数にselfを用いない
+		unsafe {
+			let next_tx_num_tmp = NEXT_TX_NUM.clone().unwrap();
+			let mut next_tx_num = next_tx_num_tmp.lock().unwrap();
+			*(next_tx_num) += 1;
 
-		*next_tx_num
+			*next_tx_num
+		}
 	}
 }
 
@@ -142,8 +146,26 @@ mod tests {
 		let lm = Arc::new(Mutex::new(LogMgr::new(fm.clone(), "testfile").unwrap()));
 		let bm = Arc::new(Mutex::new(BufferMgr::new(fm.clone(), lm.clone(), 10)));
 		// マルチスレッドでシングルトンであるかどうかが確認できていない
-		let tx1 = Transaction::new(fm.clone(), lm.clone(), bm.clone());
-		let tx2 = Transaction::new(fm.clone(), lm.clone(), bm.clone());
-		assert!(Arc::ptr_eq(&tx1.next_tx_num, &tx2.next_tx_num));
+		unsafe {
+			let _ = Transaction::new(fm.clone(), lm.clone(), bm.clone());
+			let p1 = NEXT_TX_NUM.clone().unwrap();
+			let _ = Transaction::new(fm.clone(), lm.clone(), bm.clone());
+			let p2 = NEXT_TX_NUM.clone().unwrap();
+			assert!(Arc::ptr_eq(&p1, &p2));
+		}
+	}
+
+	#[test]
+	fn test_txnum_is_increment() {
+		let fm = Arc::new(Mutex::new(FileMgr::new("txtest/transactiontest", 200).unwrap()));
+		let lm = Arc::new(Mutex::new(LogMgr::new(fm.clone(), "testfile").unwrap()));
+		let bm = Arc::new(Mutex::new(BufferMgr::new(fm.clone(), lm.clone(), 10)));
+
+		let tx_base = Transaction::new(fm.clone(), lm.clone(), bm.clone());
+		let base = tx_base.txnum;
+		for i in 1..11 {
+			let tx = Transaction::new(fm.clone(), lm.clone(), bm.clone());
+			assert_eq!(tx.txnum, i + base);
+		}
 	}
 }
