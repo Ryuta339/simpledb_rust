@@ -24,8 +24,8 @@ impl BufferList {
 			bm,
 		}
 	}
-	fn get_buffer(&mut self, blk: &BlockId) -> Option<&mut Arc<Mutex<Buffer>>> {
-		self.buffers.get_mut(blk)
+	fn get_buffer(&mut self, blk: &BlockId) -> Option<&Arc<Mutex<Buffer>>> {
+		self.buffers.get(blk)
 	}
 	fn pin(&mut self, blk: &BlockId) -> Result<()> {
 		let buff = self.bm.lock().unwrap().pin(blk)?;
