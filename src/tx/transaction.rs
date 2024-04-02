@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, Once};
 
 use crate::{
 	buffer::manager::BufferMgr,
-	file::{block_id::BlockId, manager::FileMgr},
+	file::{block_id::BlockId, manager::FileMgr, page::PageSetter},
 	log::manager::LogMgr,
 };
 
@@ -54,31 +54,61 @@ impl Transaction {
 	}
 
 	pub fn commit(&mut self) -> Result<()> {
-		panic!("TODO")
+		self.recovery_mgr
+			.as_ref()
+			.unwrap()
+			.lock()
+			.unwrap()
+			.commit()?;
+		self.concur_mgr.release()?;
+		self.mybuffers.unpin_all()?;
+		println!("transaction {} committed", self.txnum);
+
+		Ok(())
 	}
 
 	pub fn rollback(&mut self) -> Result<()> {
-		panic!("TODO")
+		self.recovery_mgr
+			.as_ref()
+			.unwrap()
+			.lock()
+			.unwrap()
+			.rollback()?;
+		self.concur_mgr.release()?;
+		self.mybuffers.unpin_all()?;
+		println!("transaction {} rolled back", self.txnum);
+
+		Ok(())
 	}
 
 	pub fn recover(&mut self) -> Result<()> {
-		panic!("TODO")
+		self.bm.lock().unwrap().flush_all(self.txnum)?;
+		self.recovery_mgr
+			.as_ref()
+			.unwrap()
+			.lock()
+			.unwrap()
+			.recover()
 	}
 
 	pub fn pin(&mut self, blk: &BlockId) -> Result<()> {
-		panic!("TODO")
+		self.mybuffers.pin(blk)
 	}
 
 	pub fn unpin(&mut self, blk: &BlockId) -> Result<()> {
-		panic!("TODO")
+		self.mybuffers.unpin(blk)
 	}
 
-	pub fn get_i32(&mut self, blk: &BlockId, offset: i32) -> Result<()> {
-		panic!("TODO")
+	pub fn get_i32(&mut self, blk: &BlockId, offset: i32) -> Result<i32> {
+		self.concur_mgr.s_lock(blk)?;
+		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
+		buff.contents().get_i32(offset as usize)
 	}
 
-	pub fn get_string(&mut self, blk: &BlockId, offset: i32) -> Result<()> {
-		panic!("TODO")
+	pub fn get_string(&mut self, blk: &BlockId, offset: i32) -> Result<String> {
+		self.concur_mgr.s_lock(blk)?;
+		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
+		buff.contents().get_string(offset as usize)
 	}
 
 	pub fn set_i32(
@@ -88,7 +118,18 @@ impl Transaction {
 		val: i32,
 		ok_to_log: bool,
 	) -> Result<()> {
-		panic!("TODO")
+		self.concur_mgr.x_lock(blk)?;
+		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
+		let mut lsn: i32 = -1;
+		if ok_to_log {
+			let mut rm = self.recovery_mgr.as_ref().unwrap().lock().unwrap();
+			lsn = rm.set_i32(&mut buff, offset, val)?.try_into().unwrap();
+		}
+		let p = buff.contents();
+		p.set(offset as usize, val)?;
+		buff.set_modified(self.txnum, lsn);
+
+		Ok(())
 	}
 
 	pub fn set_string(
@@ -98,7 +139,18 @@ impl Transaction {
 		val: &str,
 		ok_to_log: bool,
 	) -> Result<()> {
-		panic!("TODO")
+		self.concur_mgr.x_lock(blk)?;
+		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
+		let mut lsn: i32 = -1;
+		if ok_to_log {
+			let mut rm = self.recovery_mgr.as_ref().unwrap().lock().unwrap();
+			lsn = rm.set_string(&mut buff, offset, val)?.try_into().unwrap();
+		}
+		let p = buff.contents();
+		p.set(offset as usize, val.to_string())?;
+		buff.set_modified(self.txnum, lsn);
+
+		Ok(())
 	}
 
 	pub fn size(&self, filename: &str) -> u64 {
@@ -110,11 +162,11 @@ impl Transaction {
 	}
 
 	pub fn block_size(&self) -> u64 {
-		panic!("TODO")
+		self.fm.lock().unwrap().blocksize()
 	}
 
 	pub fn available_buffs(&self) -> Result<usize> {
-		panic!("TODO")
+		self.bm.lock().unwrap().available()
 	}
 
 	fn next_tx_number() -> i32 {
