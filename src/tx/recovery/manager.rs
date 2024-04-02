@@ -62,10 +62,10 @@ impl RecoveryMgr {
 		txnum: i32,
 		lm: Arc<Mutex<LogMgr>>,
 		bm: Arc<Mutex<BufferMgr>>,
-	) -> Result<Self> {
-		StartRecord::write_to_log(Arc::clone(&lm), txnum)?;
+	) -> Self {
+		StartRecord::write_to_log(Arc::clone(&lm), txnum).unwrap();
 
-		Ok(Self { lm, bm, tx, txnum })
+		Self { lm, bm, tx, txnum }
 	}
 
 	pub fn commit(&mut self) -> Result<()> {

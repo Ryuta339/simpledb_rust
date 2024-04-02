@@ -9,10 +9,7 @@ use crate::{
 
 use super::{
 	bufferlist::BufferList,
-	concurrency::{
-		locktable::LockTable,
-		manager::ConcurrencyMgr,
-	},
+	concurrency::manager::ConcurrencyMgr,
 	recovery::manager::RecoveryMgr,
 };
 
@@ -23,6 +20,7 @@ static ONCE: Once = Once::new();
 
 // 参考元のだとMutexにしてないが，必要だと思うので追加
 pub struct Transaction {
+	recovery_mgr: Option<Arc<Mutex<RecoveryMgr>>>,
 	concur_mgr: ConcurrencyMgr,
 	fm: Arc<Mutex<FileMgr>>,
 	lm: Arc<Mutex<LogMgr>>,
@@ -44,6 +42,7 @@ impl Transaction {
 				NEXT_TX_NUM = Some(singleton);
 			});
 			Self {
+				recovery_mgr: None, // dummy
 				concur_mgr: ConcurrencyMgr::new(),
 				fm,
 				lm,
