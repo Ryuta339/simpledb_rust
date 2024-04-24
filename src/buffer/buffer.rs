@@ -23,6 +23,7 @@ impl fmt::Display for BufferError {
 	}
 }
 
+#[derive(Debug, Clone)]
 pub struct Buffer {
 	fm: Arc<Mutex<FileMgr>>,
 	lm: Arc<Mutex<LogMgr>>,

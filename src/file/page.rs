@@ -23,6 +23,7 @@ pub trait PageSetter<T: ToPageBytes> {
 	fn set (&mut self, offset: usize, t: T) -> Result<usize>;
 }
 
+#[derive(Debug, Clone)]
 pub struct Page {
 	bb: Vec<u8>,
 }
