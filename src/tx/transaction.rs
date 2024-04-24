@@ -13,7 +13,8 @@ use super::{
 	recovery::manager::RecoveryMgr,
 };
 
-static END_OF_FILE: i64 = -1;
+// block_idをunsignedのままにしておきたいが，オーバーフローの検知とかができるi32のが良い？
+static END_OF_FILE: u64 = std::u64::MAX;
 // next_tx_num をTransactionのメンバ変数にしない
 static mut NEXT_TX_NUM: Option<Arc<Mutex<i32>>> = None;
 static ONCE: Once = Once::new();
@@ -153,12 +154,16 @@ impl Transaction {
 		Ok(())
 	}
 
-	pub fn size(&self, filename: &str) -> u64 {
-		panic!("TODO")
+	pub fn size(&mut self, filename: &str) -> Result<u64> {
+		let dummyblk = BlockId::new(filename, END_OF_FILE);
+		self.concur_mgr.s_lock(&dummyblk)?;
+		self.fm.lock().unwrap().length(filename)
 	}
 
 	pub fn append(&mut self, filename: &str) -> Result<BlockId> {
-		panic!("TODO")
+		let dummyblk = BlockId::new(filename, END_OF_FILE);
+		self.concur_mgr.x_lock(&dummyblk)?;
+		self.fm.lock().unwrap().append(filename)
 	}
 
 	pub fn block_size(&self) -> u64 {
