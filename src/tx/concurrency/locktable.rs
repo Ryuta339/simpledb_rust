@@ -31,28 +31,6 @@ impl fmt::Display for LockTableError {
 	}
 }
 
-macro_rules! lock {
-	($self:ident, $processing:block, $msg:literal) => {
-		if ($self.l.lock().is_ok())
-			$processing
-		else {
-			Err(From::from(LockTableError::LockFailed(String::from($msg))))
-		}
-	}
-}
-macro_rules! sleep {
-	($self:ident, $processing:block) => {
-		let timestamp = SystemTime::now();
-		while !waiting_too_long(timestamp) {
-			let mut locks = $self.locks.lock().unwrap();
-			$processing
-			drop(locks);
-			thread::sleep(Duration::new(1, 0));
-		}
-		return Err(From::from(LockTableError::LockAbort));
-	}
-}
-
 pub struct LockTable {
 	locks: Arc<Mutex<HashMap<BlockId, i32>>>,
 }
