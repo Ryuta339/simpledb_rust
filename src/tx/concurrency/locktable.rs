@@ -71,13 +71,13 @@ impl LockTable {
 		}
 	}
 
-	pub fn s_lock(&mut self, blk: &LockTableKey) -> Result<()> {
+	pub fn s_lock(&mut self, key: &LockTableKey) -> Result<()> {
 		let timestamp = SystemTime::now();
 
 		while !waiting_too_long(timestamp) {
 			let mut locks = self.locks.lock().unwrap();
-			if !has_x_lock(&locks, &blk) {
-				*locks.entry(blk.clone()).or_insert(0) += 1;
+			if !has_x_lock(&locks, &key) {
+				*locks.entry(key.clone()).or_insert(0) += 1;
 				return Ok(());
 			}
 			drop(locks); // release
@@ -86,13 +86,13 @@ impl LockTable {
 
 		Err(From::from(LockTableError::LockAbort))
 	}
-	pub fn x_lock(&mut self, blk: &LockTableKey) -> Result<()> {
+	pub fn x_lock(&mut self, key: &LockTableKey) -> Result<()> {
 		let timestamp = SystemTime::now();
 
 		while !waiting_too_long(timestamp) {
 			let mut locks = self.locks.lock().unwrap();
-			if !has_other_s_locks(&locks, &blk) {
-				*locks.entry(blk.clone()).or_insert(-1) = -1;
+			if !has_other_s_locks(&locks, &key) {
+				*locks.entry(key.clone()).or_insert(-1) = -1;
 				return Ok(());
 			}
 			drop(locks); // release
@@ -101,28 +101,28 @@ impl LockTable {
 
 		Err(From::from(LockTableError::LockAbort))
 	}
-	pub fn unlock(&mut self, blk: &LockTableKey) -> Result<()> {
+	pub fn unlock(&mut self, key: &LockTableKey) -> Result<()> {
 		let mut locks = self.locks.lock().unwrap();
 
-		let val = get_lock_val(&locks, &blk);
+		let val = get_lock_val(&locks, &key);
 		if val > 1 {
-			locks.entry(blk.clone()).or_insert(val - 1);
+			locks.entry(key.clone()).or_insert(val - 1);
 		} else {
-			locks.remove(&blk);
+			locks.remove(&key);
 		}
 
 		return Ok(());
 	}
 }
 
-fn has_x_lock(locks: &MutexGuard<HashMap<LockTableKey, i32>>, blk: &LockTableKey) -> bool {
-	get_lock_val(locks, blk) < 0 
+fn has_x_lock(locks: &MutexGuard<HashMap<LockTableKey, i32>>, key: &LockTableKey) -> bool {
+	get_lock_val(locks, key) < 0 
 }
-fn has_other_s_locks(locks: &MutexGuard<HashMap<LockTableKey, i32>>, blk: &LockTableKey) -> bool {
-	get_lock_val(locks, blk) > 1
+fn has_other_s_locks(locks: &MutexGuard<HashMap<LockTableKey, i32>>, key: &LockTableKey) -> bool {
+	get_lock_val(locks, key) > 1
 }
-fn get_lock_val(locks: &MutexGuard<HashMap<LockTableKey, i32>>, blk: &LockTableKey) -> i32 {
-	match locks.get(&blk) {
+fn get_lock_val(locks: &MutexGuard<HashMap<LockTableKey, i32>>, key: &LockTableKey) -> i32 {
+	match locks.get(&key) {
 		Some(&ival) => ival,
 		None => 0,
 	}
