@@ -4,14 +4,17 @@ use std::{
 	sync::{Arc, Mutex, Once}
 };
 
-use super::locktable::LockTable;
+use super::locktable::{
+	LockTable,
+	LockTableKey,
+};
 use crate::file::block_id::BlockId;
 
 #[derive(Debug, Clone)]
 pub struct ConcurrencyMgr {
 	// static member (shared by all ConcurrentMgr)
 	locktbl: Arc<Mutex<LockTable>>,
-	locks: HashMap<BlockId, String>,
+	locks: HashMap<LockTableKey, String>,
 }
 
 impl ConcurrencyMgr {
@@ -32,7 +35,7 @@ impl ConcurrencyMgr {
 		}
 	}
 
-	pub fn s_lock(&mut self, blk: &BlockId) -> Result<()> {
+	pub fn s_lock(&mut self, blk: &LockTableKey) -> Result<()> {
 		if self.locks.get(&blk).is_none() {
 			self.locktbl.lock().unwrap().s_lock(blk)?;
 			self.locks.insert(blk.clone(), "S".to_string());
@@ -40,7 +43,7 @@ impl ConcurrencyMgr {
 
 		Ok(())
 	}
-	pub fn x_lock(&mut self, blk: &BlockId) -> Result<()> {
+	pub fn x_lock(&mut self, blk: &LockTableKey) -> Result<()> {
 		if !self.has_x_lock(blk) {
 			self.s_lock(blk)?;
 			self.locktbl.lock().unwrap().x_lock(blk)?;
@@ -57,7 +60,7 @@ impl ConcurrencyMgr {
 
 		Ok(())
 	}
-	fn has_x_lock(&self, blk: &BlockId) -> bool {
+	fn has_x_lock(&self, blk: &LockTableKey) -> bool {
 		let locktype = self.locks.get(blk);
 		locktype.is_some() && locktype.unwrap().eq("X")
 	}
