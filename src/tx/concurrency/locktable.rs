@@ -59,7 +59,6 @@ macro_rules! sleep {
 	}
 }
 
-#[derive(Debug, Clone)]
 pub struct LockTable {
 	locks: Arc<Mutex<HashMap<LockTableKey, i32>>>,
 }
