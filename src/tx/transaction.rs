@@ -9,7 +9,10 @@ use crate::{
 
 use super::{
 	bufferlist::BufferList,
-	concurrency::manager::ConcurrencyMgr,
+	concurrency::{
+		manager::ConcurrencyMgr,
+		locktable::LockTableKey,
+	},
 	recovery::manager::RecoveryMgr,
 };
 
@@ -101,13 +104,13 @@ impl Transaction {
 	}
 
 	pub fn get_i32(&mut self, blk: &BlockId, offset: i32) -> Result<i32> {
-		self.concur_mgr.s_lock(blk)?;
+		self.concur_mgr.s_lock(&LockTableKey::BID(blk.clone()))?;
 		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
 		buff.contents().get_i32(offset as usize)
 	}
 
 	pub fn get_string(&mut self, blk: &BlockId, offset: i32) -> Result<String> {
-		self.concur_mgr.s_lock(blk)?;
+		self.concur_mgr.s_lock(&LockTableKey::BID(blk.clone()))?;
 		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
 		buff.contents().get_string(offset as usize)
 	}
@@ -119,7 +122,7 @@ impl Transaction {
 		val: i32,
 		ok_to_log: bool,
 	) -> Result<()> {
-		self.concur_mgr.x_lock(blk)?;
+		self.concur_mgr.x_lock(&LockTableKey::BID(blk.clone()))?;
 		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
 		let mut lsn: i32 = -1;
 		if ok_to_log {
@@ -140,7 +143,7 @@ impl Transaction {
 		val: &str,
 		ok_to_log: bool,
 	) -> Result<()> {
-		self.concur_mgr.x_lock(blk)?;
+		self.concur_mgr.x_lock(&LockTableKey::BID(blk.clone()))?;
 		let mut buff = self.mybuffers.get_buffer(blk).unwrap().lock().unwrap();
 		let mut lsn: i32 = -1;
 		if ok_to_log {
@@ -155,14 +158,12 @@ impl Transaction {
 	}
 
 	pub fn size(&mut self, filename: &str) -> Result<u64> {
-		let dummyblk = BlockId::new(filename, END_OF_FILE);
-		self.concur_mgr.s_lock(&dummyblk)?;
+		self.concur_mgr.s_lock(&LockTableKey::DUMMY(END_OF_FILE))?;
 		self.fm.lock().unwrap().length(filename)
 	}
 
 	pub fn append(&mut self, filename: &str) -> Result<BlockId> {
-		let dummyblk = BlockId::new(filename, END_OF_FILE);
-		self.concur_mgr.x_lock(&dummyblk)?;
+		self.concur_mgr.x_lock(&LockTableKey::DUMMY(END_OF_FILE))?;
 		self.fm.lock().unwrap().append(filename)
 	}
 

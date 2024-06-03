@@ -4,14 +4,15 @@ use std::{
 	sync::{Arc, Mutex, Once}
 };
 
-use super::locktable::LockTable;
-use crate::file::block_id::BlockId;
+use super::locktable::{
+	LockTable,
+	LockTableKey,
+};
 
-#[derive(Debug, Clone)]
 pub struct ConcurrencyMgr {
 	// static member (shared by all ConcurrentMgr)
 	locktbl: Arc<Mutex<LockTable>>,
-	locks: HashMap<BlockId, String>,
+	locks: HashMap<LockTableKey, String>,
 }
 
 impl ConcurrencyMgr {
@@ -32,33 +33,33 @@ impl ConcurrencyMgr {
 		}
 	}
 
-	pub fn s_lock(&mut self, blk: &BlockId) -> Result<()> {
-		if self.locks.get(&blk).is_none() {
-			self.locktbl.lock().unwrap().s_lock(blk)?;
-			self.locks.insert(blk.clone(), "S".to_string());
+	pub fn s_lock(&mut self, key: &LockTableKey) -> Result<()> {
+		if self.locks.get(&key).is_none() {
+			self.locktbl.lock().unwrap().s_lock(key)?;
+			self.locks.insert(key.clone(), "S".to_string());
 		}
 
 		Ok(())
 	}
-	pub fn x_lock(&mut self, blk: &BlockId) -> Result<()> {
-		if !self.has_x_lock(blk) {
-			self.s_lock(blk)?;
-			self.locktbl.lock().unwrap().x_lock(blk)?;
-			self.locks.insert(blk.clone(), "X".to_string());
+	pub fn x_lock(&mut self, key: &LockTableKey) -> Result<()> {
+		if !self.has_x_lock(key) {
+			self.s_lock(key)?;
+			self.locktbl.lock().unwrap().x_lock(key)?;
+			self.locks.insert(key.clone(), "X".to_string());
 		}
 
 		Ok(())
 	}
 	pub fn release(&mut self) -> Result<()> {
-		for blk in self.locks.keys() {
-			self.locktbl.lock().unwrap().unlock(blk)?;
+		for key in self.locks.keys() {
+			self.locktbl.lock().unwrap().unlock(key)?;
 		}
 		self.locks.clear();
 
 		Ok(())
 	}
-	fn has_x_lock(&self, blk: &BlockId) -> bool {
-		let locktype = self.locks.get(blk);
+	fn has_x_lock(&self, key: &LockTableKey) -> bool {
+		let locktype = self.locks.get(key);
 		locktype.is_some() && locktype.unwrap().eq("X")
 	}
 }
